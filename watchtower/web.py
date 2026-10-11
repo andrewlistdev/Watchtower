@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request,
                    session, url_for)
 
+from . import NAME, __version__
 from .config import Config, ConfigMissing
 from .runtime import check_connections, data_dir, shift_view, short_error
 from .settings_store import FIELDS, FIELDS_BY_KEY, SECTIONS, SettingsStore
@@ -75,7 +76,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Strict",
         SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE", "").lower() in {"1", "true", "yes"},
-        SESSION_COOKIE_NAME="relay_session",
+        SESSION_COOKIE_NAME="watchtower_session",
         PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
     )
     throttle = LoginThrottle()
@@ -85,7 +86,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         if setup_state["token"] is None:
             setup_state["token"] = secrets.token_urlsafe(18)
             log.warning("=" * 64)
-            log.warning("No admin account yet. Open the admin page and use this setup code:")
+            log.warning("%s has no admin account yet. Open the admin page and use this setup code:", NAME)
             log.warning("    %s", setup_state["token"])
             log.warning("=" * 64)
         return setup_state["token"]
@@ -138,6 +139,8 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         return session["csrf"]
 
     app.jinja_env.globals["csrf_token"] = csrf_token
+    app.jinja_env.globals["app_name"] = NAME
+    app.jinja_env.globals["app_version"] = __version__
 
     def current_config() -> Config | None:
         try:
@@ -276,6 +279,8 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
     def healthz():
         st = worker.status if worker else None
         return jsonify(
+            name=NAME,
+            version=__version__,
             phase=st.phase if st else "no-worker",
             last_check_at=st.last_check_at.isoformat() if st and st.last_check_at else None,
             last_check_ok=st.last_check_ok if st else None,

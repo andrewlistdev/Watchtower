@@ -1,4 +1,4 @@
-/* Ticket relay admin. Atkinson Hyperlegible Next (OFL), self-hosted. */
+/* Watchtower admin. Atkinson Hyperlegible Next (OFL), self-hosted. */
 @font-face { font-family: "Atkinson Next"; src: url("fonts/atkinson-hyperlegible-next-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Atkinson Next"; src: url("fonts/atkinson-hyperlegible-next-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 @font-face { font-family: "Atkinson Mono"; src: url("fonts/atkinson-hyperlegible-mono-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
@@ -61,13 +61,15 @@ code, .id { font-family: "Atkinson Mono", ui-monospace, monospace; font-size: .9
 
 /* Masthead */
 .masthead {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 2rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 2rem;
   padding: 1rem clamp(1rem, 4vw, 3rem);
   border-bottom: 1px solid var(--rule);
   background: var(--surface);
 }
-.brand { font-weight: 700; font-size: 1.15rem; color: var(--ink); text-decoration: none; }
-.brand span { font-weight: 400; color: var(--muted); }
+.brand { display: inline-flex; align-items: center; gap: .55rem; flex-wrap: wrap; color: var(--ink); text-decoration: none; }
+.brand .mark { width: 1.9rem; height: 1.9rem; fill: var(--action); flex: none; align-self: center; }
+.brand-name { font-weight: 700; font-size: 1.25rem; letter-spacing: .01em; }
+.brand-sub { color: var(--muted); }
 .masthead nav { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; align-items: baseline; margin-left: auto; }
 .masthead nav a { color: var(--muted); text-decoration: none; padding: .2rem 0; border-bottom: 2px solid transparent; }
 .masthead nav a:hover { color: var(--ink); }
@@ -76,7 +78,8 @@ code, .id { font-family: "Atkinson Mono", ui-monospace, monospace; font-size: .9
 .linklike { background: none; border: 0; padding: .2rem 0; font: inherit; color: var(--muted); cursor: pointer; }
 .linklike:hover { color: var(--ink); }
 
-main { max-width: 72rem; margin: 0 auto; padding: 2rem clamp(1rem, 4vw, 3rem) 6rem; }
+main { max-width: 72rem; margin: 0 auto; padding: 2rem clamp(1rem, 4vw, 3rem) 4rem; }
+.footer { max-width: 72rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 3rem) 2rem; color: var(--muted); font-size: .85rem; }
 .narrow { max-width: 26rem; margin: 10vh auto 0; }
 main.wide { max-width: 96rem; }
 
@@ -189,3 +192,7 @@ td .help { margin: 0; }
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/* Footer lines up with the page's content column */
+main.narrow + .footer { max-width: 26rem; margin-top: 2rem; }
+main.wide + .footer { max-width: 96rem; }

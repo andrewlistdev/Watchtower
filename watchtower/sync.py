@@ -107,8 +107,8 @@ class Syncer:
             if person and person.active:
                 return Assignment(person.sdp_email, person.pagerduty_id, person.pagerduty_user, selection.reason)
             reason = (
-                f"{selection.reason}; but PagerDuty user {selection.entry.user_name} "
-                f"({selection.entry.user_id}) is not active in the identity map"
+                f"{selection.reason}, but {selection.entry.user_name} ({selection.entry.user_id}) "
+                f"isn't an active person on Watchtower's People page"
             )
         elif not reason:
             reason = "Nobody is on the PagerDuty schedule in the lookahead window"
@@ -240,12 +240,12 @@ class Syncer:
         log.info("AW %s -> SDP %s, technician=%s (%s)", aw_id, sdp_id, who.email or "unassigned", who.reason)
 
         if who.email:
-            note = (f"Acknowledged automatically and assigned to {who.name or who.email}. "
-                    f"PagerDuty: {who.reason}.")
+            note = (f"Watchtower acknowledged this and assigned it to {who.name or who.email}. "
+                    f"Why: {who.reason}.")
         else:
-            note = f"Not auto-assigned: {who.reason}. Please assign manually."
+            note = f"Watchtower couldn't assign this: {who.reason}. Assign it manually."
         try:
-            self.sdp.add_note(sdp_id, html.escape(note), mark_first_response=bool(who.email))
+            self.sdp.add_note(sdp_id, html.escape(note, quote=False), mark_first_response=bool(who.email))
         except (APIError, requests.RequestException) as exc:
             log.warning("SDP %s: could not add acknowledgement note: %s", sdp_id, exc)
 
@@ -255,7 +255,7 @@ class Syncer:
                 self._warned_stuck.add(row["aw_id"])
                 log.critical(
                     "AW %s is stuck in 'creating' (last error: %s). Check SDP for '[AW-%s]', then "
-                    "run `python -m app resolve-stuck %s <sdp_id>` or `... resolve-stuck %s none`.",
+                    "run `docker compose run --rm watchtower resolve-stuck %s <sdp_id>` (or `... %s none`).",
                     row["aw_id"], row["last_error"], row["aw_id"], row["aw_id"], row["aw_id"],
                 )
 
@@ -317,7 +317,7 @@ class Syncer:
                     self.sdp.add_note(
                         row["sdp_id"],
                         html.escape(f"Arctic Wolf closed AW ticket {aw_id} on their side. "
-                                    "Resolve this request if no further work is needed."),
+                                    "Resolve this request if no further work is needed.", quote=False),
                     )
                 except (APIError, requests.RequestException) as exc:
                     log.warning("SDP %s: could not add AW-closed note: %s", row["sdp_id"], exc)

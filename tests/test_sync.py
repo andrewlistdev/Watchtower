@@ -3,12 +3,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import requests
 
-from app.config import Config
-from app.http import APIError
-from app.identity import Person
-from app.oncall import ScheduleEntry
-from app.state import State
-from app.sync import Syncer
+from watchtower.config import Config
+from watchtower.http import APIError
+from watchtower.identity import Person
+from watchtower.oncall import ScheduleEntry
+from watchtower.state import State
+from watchtower.sync import Syncer
 
 NOW = datetime(2026, 10, 12, 14, 0, tzinfo=timezone.utc)
 
@@ -126,7 +126,7 @@ def test_new_ticket_assigned_to_on_shift_and_acknowledged(env):
     assert req["priority"] == {"name": "High"}
     assert req["udf_fields"] == {"udf_sline_301": "1"}
     rid, note, first_response = sdp.notes[0]
-    assert "Acknowledged" in note and first_response is True
+    assert "Watchtower acknowledged" in note and first_response is True
     assert s.state.get(1)["state"] == "open"
 
 
@@ -153,7 +153,7 @@ def test_unmapped_pagerduty_user_creates_unassigned(env):
     s.run_cycle()
     (req,) = sdp.requests.values()
     assert "technician" not in req
-    assert "Not auto-assigned" in sdp.notes[0][1]
+    assert "couldn't assign" in sdp.notes[0][1]
 
 
 def test_fallback_technician_used_when_unmapped(env):

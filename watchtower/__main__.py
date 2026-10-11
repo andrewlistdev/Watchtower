@@ -1,12 +1,13 @@
-"""Entry point.
+"""Watchtower command line. In Docker: `docker compose run --rm watchtower <command>`.
 
-  python -m app run                 admin GUI + sync worker (what the container runs)
-  python -m app once                one sync check, then exit
-  python -m app check               test credentials for all three APIs (read-only)
-  python -m app whois [--at ISO]    who would get a ticket right now (read-only)
-  python -m app status              list tracked tickets
-  python -m app resolve-stuck AW_ID SDP_ID|none
-  python -m app reset-admins        remove all admin accounts; a new setup code is logged
+  run                 admin page + sync worker (what the container runs)
+  once                one sync check, then exit
+  check               test credentials for all three APIs (read-only)
+  whois [--at ISO]    who would get a ticket right now (read-only)
+  status              list tracked tickets
+  resolve-stuck AW_ID SDP_ID|none
+  reset-admins        remove all admin accounts; a new setup code is logged
+  --version           print the version
 """
 
 from __future__ import annotations
@@ -17,12 +18,13 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from . import NAME, __version__
 from .config import Config, ConfigMissing
 from .runtime import build_syncer, check_connections, db_path, open_store, shift_view
 from .oncall import parse_ts
 from .state import State
 
-log = logging.getLogger("app")
+log = logging.getLogger("watchtower")
 
 
 def load_config(store) -> Config:
@@ -46,7 +48,7 @@ def cmd_run() -> int:
     worker.start()
     app = create_app(store, worker, db_path())
     port = int(os.environ.get("PORT", "8080"))
-    log.info("Admin page listening on port %s", port)
+    log.info("%s %s: admin page listening on port %s", NAME, __version__, port)
     if not store.has_admin():
         app.extensions["setup_token"]()  # log the setup code now so `docker compose logs` shows it
     serve(app, host="0.0.0.0", port=port, threads=8, ident=None)
@@ -60,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
         stream=sys.stdout,
     )
     logging.getLogger("waitress.queue").setLevel(logging.ERROR)
-    parser = argparse.ArgumentParser(prog="python -m app")
+    parser = argparse.ArgumentParser(prog="watchtower", description=f"{NAME} {__version__}")
+    parser.add_argument("--version", action="version", version=f"{NAME} {__version__}")
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("run")
     sub.add_parser("once")

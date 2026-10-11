@@ -2,9 +2,9 @@
 {% block title %}Set up{% endblock %}
 {% block main_attrs %}class="narrow"{% endblock %}
 {% block content %}
-<h1>Create the admin account</h1>
+<h1>Set up Watchtower</h1>
 <p class="muted">The setup code is in the container log. Run
-  <code>docker compose logs aw-sdp-pd-sync</code> and copy the code shown there.</p>
+  <code>docker compose logs watchtower</code> and copy the code shown there.</p>
 <form method="post" class="stack" novalidate>
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   <div>

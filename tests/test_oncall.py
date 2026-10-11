@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.oncall import ScheduleEntry, merge_adjacent, pick_on_shift
+from watchtower.oncall import ScheduleEntry, merge_adjacent, pick_on_shift
 
 T0 = datetime(2026, 10, 12, 8, 0, tzinfo=timezone.utc)
 

@@ -6,6 +6,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from . import USER_AGENT
+
 DEFAULT_TIMEOUT = 30
 
 
@@ -28,6 +30,8 @@ def make_session() -> requests.Session:
         respect_retry_after_header=True,
     )
     session = requests.Session()
+    # Identifies Watchtower in the vendors' API logs.
+    session.headers["User-Agent"] = USER_AGENT
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
     session.mount("http://", adapter)

@@ -1,8 +1,12 @@
+name: watchtower
+
 services:
-  aw-sdp-pd-sync:
+  watchtower:
     build: .
-    image: aw-sdp-pd-sync:latest
-    container_name: aw-sdp-pd-sync
+    image: watchtower:1.0.0
+    # Not plain "watchtower": that container name is often already taken by the
+    # containrrr Watchtower image updater on self-hosted Docker hosts.
+    container_name: watchtower-app
     restart: unless-stopped
     ports:
       # Admin page at http://localhost:8080. Bound to this machine only; see README
@@ -14,9 +18,12 @@ services:
       # Optional. Credentials are entered on the admin Settings page, not here.
       - path: .env
         required: false
+    labels:
+      # Locally built image: tell the containrrr updater, if you run it, to leave this alone.
+      com.centurylinklabs.watchtower.enable: "false"
     volumes:
       # Settings, encrypted credentials, the encryption key and ticket state.
-      - sync-data:/data
+      - watchtower-data:/data
     logging:
       driver: json-file
       options:
@@ -24,4 +31,4 @@ services:
         max-file: "5"
 
 volumes:
-  sync-data:
+  watchtower-data:

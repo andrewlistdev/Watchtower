@@ -1,17 +1,17 @@
-# Flows
+# How Watchtower works
 
 Everything runs in one polling loop (default every 60 seconds) inside the same container
 as the admin page. Each check re-reads the settings saved on the admin page, then runs
 flows 1, 2 and 3 in order. Until the required credentials are saved, the loop waits.
 Settings, encrypted credentials, the people list and ticket state live in SQLite
-(`/data/state.db`) in the `sync-data` volume.
+(`/data/state.db`) in the `watchtower-data` volume.
 
 ## Flow 1: New Arctic Wolf ticket → SDP request, assigned and acknowledged
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant S as Sync service
+    participant S as Watchtower
     participant AW as Arctic Wolf Ticket API
     participant PD as PagerDuty
     participant SDP as ServiceDesk Plus Cloud
@@ -56,7 +56,7 @@ Back-to-back PagerDuty entries for the same person are merged first, so the
 ```mermaid
 sequenceDiagram
     autonumber
-    participant S as Sync service
+    participant S as Watchtower
     participant SDP as ServiceDesk Plus Cloud
     participant AW as Arctic Wolf Ticket API
     loop each mapping still "open"
@@ -76,7 +76,7 @@ marked done. Otherwise the error is recorded and retried next cycle.
 
 ```mermaid
 sequenceDiagram
-    participant S as Sync service
+    participant S as Watchtower
     participant AW as Arctic Wolf Ticket API
     participant SDP as ServiceDesk Plus Cloud
     S->>AW: GET /tickets?status=CLOSED&updatedAfter=<last check>

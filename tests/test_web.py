@@ -5,10 +5,10 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from app.oncall import ScheduleEntry
-from app.runtime import shift_view
-from app.settings_store import SettingsStore
-from app.web import create_app, strip_layout
+from watchtower.oncall import ScheduleEntry
+from watchtower.runtime import shift_view
+from watchtower.settings_store import SettingsStore
+from watchtower.web import create_app, strip_layout
 
 SECRET = "aw-super-secret-token-12345678"
 
@@ -182,7 +182,7 @@ def test_seed_people_from_csv(env, tmp_path):
 
 
 def test_strip_layout_marks_handoff(env):
-    from app.config import Config
+    from watchtower.config import Config
     _, store, _ = env
     now = datetime(2026, 10, 12, 14, 40, tzinfo=timezone.utc)
     entries = [

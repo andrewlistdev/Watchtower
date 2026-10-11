@@ -1,9 +1,9 @@
 import json
 from datetime import datetime, timezone
 
-from app.arcticwolf import ArcticWolfClient
-from app.pagerduty import PagerDutyClient
-from app.servicedesk import ServiceDeskClient
+from watchtower.arcticwolf import ArcticWolfClient
+from watchtower.pagerduty import PagerDutyClient
+from watchtower.servicedesk import ServiceDeskClient
 
 
 class Resp:
@@ -42,8 +42,8 @@ def test_sdp_sends_input_data_form_and_refreshes_on_401(monkeypatch):
     c = ServiceDeskClient("https://sdp/app/itdesk", "https://accounts.zoho.com", "id", "sec", "ref")
     tokens = iter(["tok1", "tok2"])
     monkeypatch.setattr(
-        "app.servicedesk.requests.post",
-        lambda url, params, timeout: Resp(200, {"access_token": next(tokens), "expires_in": 3600}),
+        "watchtower.servicedesk.requests.post",
+        lambda url, params, timeout, headers=None: Resp(200, {"access_token": next(tokens), "expires_in": 3600}),
     )
     calls = []
 
@@ -64,8 +64,8 @@ def test_sdp_sends_input_data_form_and_refreshes_on_401(monkeypatch):
 
 def test_sdp_note_uses_request_note_wrapper(monkeypatch):
     c = ServiceDeskClient("https://sdp", "https://acc", "id", "sec", "ref")
-    monkeypatch.setattr("app.servicedesk.requests.post",
-                        lambda url, params, timeout: Resp(200, {"access_token": "t", "expires_in": 3600}))
+    monkeypatch.setattr("watchtower.servicedesk.requests.post",
+                        lambda url, params, timeout, headers=None: Resp(200, {"access_token": "t", "expires_in": 3600}))
     captured = {}
 
     def fake_request(method, url, headers, timeout, data=None, params=None):

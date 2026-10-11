@@ -8,7 +8,7 @@
 {% if errors %}
   <div class="error-box" role="alert">Some settings weren't saved. Fix the fields marked below and save again.</div>
 {% elif missing %}
-  <div class="notice">Still needed before the relay can start:
+  <div class="notice">Still needed before Watchtower can start:
     {% for f in missing %}{{ f.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
 {% endif %}
 

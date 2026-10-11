@@ -14,6 +14,7 @@ import time
 
 import requests
 
+from . import USER_AGENT
 from .http import DEFAULT_TIMEOUT, APIError, check, make_session
 
 ACCEPT = "application/vnd.manageengine.sdp.v3+json"
@@ -52,6 +53,7 @@ class ServiceDeskClient:
                         "client_secret": self.client_secret,
                         "grant_type": "refresh_token",
                     },
+                    headers={"User-Agent": USER_AGENT},
                     timeout=DEFAULT_TIMEOUT,
                 ),
             )
