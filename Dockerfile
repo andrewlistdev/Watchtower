@@ -11,8 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY config ./config
 
-RUN useradd --create-home --uid 10001 sync && mkdir -p /data && chown sync /data
-USER sync
+# "sync" is a built-in Debian system account, so use a distinct name.
+RUN useradd --create-home --uid 10001 appuser && mkdir -p /data && chown appuser /data
+USER appuser
 
 VOLUME ["/data"]
 
