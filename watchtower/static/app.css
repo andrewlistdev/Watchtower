@@ -257,6 +257,21 @@ a.cell-title:hover { color: var(--link); text-decoration: underline; }
 .timeline__message { margin: 0; }
 .timeline__meta { display: flex; flex-wrap: wrap; gap: var(--wt-space-1) var(--wt-space-3); margin: 2px 0 0; font: var(--wt-type-secondary); color: var(--text-muted); }
 
+/* ---- Settings helpers ------------------------------------------------------- */
+.setting__actions { display: flex; flex-wrap: wrap; gap: var(--wt-space-3); }
+.lookup { margin-top: var(--wt-space-4); padding-top: var(--wt-space-4); border-top: 1px solid var(--border); }
+.lookup h3 { font: var(--wt-type-label); color: var(--text-muted); margin-bottom: var(--wt-space-2); }
+.lookup__list { list-style: none; margin: 0; padding: 0; }
+.lookup__item {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--wt-space-4); flex-wrap: wrap;
+  padding: var(--wt-space-3) var(--wt-space-4); background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--wt-radius-control); margin-bottom: var(--wt-space-2);
+}
+.lookup__item p { margin: 0; }
+.lookup__raw { margin-top: var(--wt-space-2); font: var(--wt-type-secondary); }
+.lookup__raw dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--wt-space-3); margin: var(--wt-space-2) 0 0; }
+.lookup__raw dd { margin: 0; }
+
 /* ---- Ticket detail ---------------------------------------------------------------- */
 .ticket-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0 var(--wt-space-6); }
 .facts { margin: 0; display: grid; gap: var(--wt-space-4); }

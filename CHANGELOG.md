@@ -5,6 +5,19 @@ number, new features the middle one, and changes that need you to do something w
 upgrading the first. The version lives in `watchtower/__init__.py`; the image tag in
 `docker-compose.yml` must match it.
 
+## 1.2.0 (2026-10-11)
+
+Credentials can be set up entirely from the Settings page.
+
+- **Arctic Wolf:** "Save and look up organization" asks Arctic Wolf's Organizations API
+  which organizations your Personal API Key can see; "Use this organization" fills in
+  the region and organization ID. Regions beyond the built-in list are accepted.
+- **ServiceDesk Plus:** paste a Zoho Self Client grant code and Watchtower exchanges it
+  for a refresh token, so there's no terminal step and no secrets in shell history.
+- **Save and test connection** now tests each service on its own, so you can check
+  Arctic Wolf before PagerDuty is filled in.
+- Settings help text says where to find each credential; README has the full steps.
+
 ## 1.1.0 (2026-10-11)
 
 Applies the Watchtower brand guide (`docs/BRAND_GUIDE.md`).

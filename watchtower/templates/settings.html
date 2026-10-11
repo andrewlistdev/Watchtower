@@ -9,7 +9,10 @@
   </div>
 </div>
 
-{% if errors %}
+{% if errors and errors.keys() | list == ['zoho_grant_code'] %}
+  <p class="notice tone-error" role="alert">{% if saved_other %}Your other changes were saved, but the{% else %}The{% endif %}
+    Zoho code didn't work. See <a href="#sdp">ServiceDesk Plus Cloud</a>.</p>
+{% elif errors %}
   <p class="notice tone-error" role="alert">Some settings weren't saved. Fix the fields marked below and save again.</p>
 {% elif missing %}
   <p class="notice tone-escalated">Watchtower can't start routing until these are filled in:
@@ -64,6 +67,9 @@
             {% for value, text in f.choices %}
               <option value="{{ value }}" {% if value == current %}selected{% endif %}>{{ text }}</option>
             {% endfor %}
+            {% if current and current not in f.choices | map('first') | list %}
+              <option value="{{ current }}" selected>{{ current }}</option>
+            {% endif %}
           </select>
         {% else %}
           <input id="{{ f.key }}" name="{{ f.key }}" type="text" spellcheck="false"
@@ -76,10 +82,55 @@
         {{ ui.FieldError(errors, f.key) }}
       </div>
     </div>
+    {% if f.key == 'zoho_refresh_token' %}
+    <div class="setting">
+      <div class="setting__label">
+        <label for="zoho_grant_code">Or paste a Zoho grant code</label>
+        <p class="help">Watchtower swaps it for a refresh token and saves that. Generate it in the Zoho API Console
+          (Self Client, Generate Code) with scope <code>SDPOnDemand.requests.ALL</code>, then save within a few
+          minutes. Needs the Client ID and secret above.</p>
+      </div>
+      <div class="setting__control">
+        <input id="zoho_grant_code" name="zoho_grant_code" type="text" autocomplete="off" spellcheck="false"
+               placeholder="1000.xxxxxxxx…" {% if errors.zoho_grant_code %}aria-invalid="true" aria-describedby="zoho_grant_code-err"{% endif %}>
+        {{ ui.FieldError(errors, "zoho_grant_code") }}
+      </div>
+    </div>
+    {% endif %}
     {% endfor %}
+
+    {% if s.key == 'aw' %}
+      {% if aw_lookup_error %}<p class="notice tone-error" role="status">{{ aw_lookup_error }}</p>{% endif %}
+      {% if aw_orgs %}
+      <div class="lookup" aria-labelledby="orgs-h">
+        <h3 id="orgs-h">Organizations for this token</h3>
+        <ul class="lookup__list">
+          {% for o in aw_orgs %}
+          <li class="lookup__item">
+            <div>
+              <p class="cell-title">{{ o.name or 'Organization' }}</p>
+              <p class="cell-sub">ID <span class="id">{{ o.id or 'not found' }}</span>{% if o.pod %}, region {{ o.pod | upper }}{% endif %}</p>
+              {% if not (o.id and o.pod) %}
+              <details class="lookup__raw"><summary>Everything Arctic Wolf returned</summary>
+                <dl>{% for k, v in o.fields.items() %}<dt>{{ k }}</dt><dd class="id">{{ v }}</dd>{% endfor %}</dl>
+              </details>
+              {% endif %}
+            </div>
+            {% if o.id and o.pod %}
+              <button type="submit" name="use_org" value="{{ o.id }}|{{ o.pod }}" class="btn btn-primary">Use this organization</button>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    {% endif %}
 
     {% if s.key in ('aw', 'sdp', 'pd') %}
       <div class="setting__actions">
+        {% if s.key == 'aw' %}
+          <button type="submit" name="lookup" value="aw" class="btn btn-secondary">Save and look up organization</button>
+        {% endif %}
         <button type="submit" name="test" value="{{ s.key }}" class="btn btn-secondary">Save and test connection</button>
       </div>
     {% endif %}

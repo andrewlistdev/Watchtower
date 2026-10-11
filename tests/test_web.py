@@ -118,7 +118,7 @@ def test_validation_blocks_bad_values(env):
     resp = client.post("/settings", data={"csrf": csrf(page), "aw_org_uuid": "not-a-uuid",
                                           "aw_api_token": SECRET})
     html = resp.get_data(as_text=True)
-    assert "isn&#39;t a UUID" in html
+    assert "isn&#39;t an organization ID" in html
     assert store.saved("aw_org_uuid") is None and store.saved("aw_api_token") is None  # nothing saved
 
 
@@ -270,3 +270,87 @@ def test_logo_component_renders_inline_svg(env):
     html = client.get("/").get_data(as_text=True)
     assert 'class="wt-logo wt-logo--auto"' in html and 'aria-label="Watchtower"' in html
     assert 'href="/static/brand/favicon.svg"' in html
+
+
+ORG = "8f14e45f-ceea-4e7a-9b2b-3c1e7f0a1d22"
+
+
+def test_arctic_wolf_lookup_fills_org_and_region(env, monkeypatch):
+    import watchtower.web as web
+    from watchtower.arcticwolf import describe_organization
+    app, store, _ = env
+    client = sign_up(app)
+    seen = {}
+
+    def fake_lookup(token):
+        seen["token"] = token
+        return [describe_organization({"organization": {"id": ORG, "name": "Arrowhead EP"}, "pod": "US002"})]
+
+    monkeypatch.setattr(web, "lookup_organizations", fake_lookup)
+    page = client.get("/settings").get_data(as_text=True)
+    html = client.post("/settings", data={"csrf": csrf(page), "aw_api_token": SECRET,
+                                          "lookup": "aw"}).get_data(as_text=True)
+    assert seen["token"] == SECRET
+    assert "Arrowhead EP" in html and f'value="{ORG}|us002"' in html
+    resp = client.post("/settings", data={"csrf": csrf(html), "use_org": f"{ORG}|us002"})
+    assert resp.status_code == 302
+    assert store.resolved("aw_org_uuid") == ORG
+    assert store.resolved("aw_base_url") == "https://ticket-api.managedgw.us002-prod.arcticwolf.net"
+    assert "us002-prod" in client.get("/settings").get_data(as_text=True)  # unlisted regions still show
+
+
+def test_lookup_without_token_explains(env):
+    app, _, _ = env
+    client = sign_up(app)
+    page = client.get("/settings").get_data(as_text=True)
+    html = client.post("/settings", data={"csrf": csrf(page), "lookup": "aw"}).get_data(as_text=True)
+    assert "Save the Arctic Wolf API token first." in html
+
+
+def test_zoho_grant_code_is_exchanged_and_saved(env, monkeypatch):
+    import watchtower.web as web
+    app, store, _ = env
+    client = sign_up(app)
+    calls = {}
+
+    def fake_exchange(accounts_url, cid, secret, code):
+        calls.update(url=accounts_url, cid=cid, secret=secret, code=code)
+        return "1000.refresh.token.abcdef"
+
+    monkeypatch.setattr(web, "exchange_grant_code", fake_exchange)
+    page = client.get("/settings").get_data(as_text=True)
+    resp = client.post("/settings", data={"csrf": csrf(page), "zoho_client_id": "1000.CLIENT",
+                                          "zoho_client_secret": "s3cret-value-xyz", "zoho_grant_code": " 1000.code "})
+    assert resp.status_code == 302
+    assert calls == {"url": "https://accounts.zoho.com", "cid": "1000.CLIENT", "secret": "s3cret-value-xyz",
+                     "code": "1000.code"}
+    assert store.resolved("zoho_refresh_token") == "1000.refresh.token.abcdef"
+    actions = " ".join(r["action"] for r in store.recent_audit())
+    assert "exchanged a Zoho grant code" in actions and "1000.refresh" not in actions
+
+
+def test_zoho_grant_code_failure_keeps_other_changes(env, monkeypatch):
+    import watchtower.web as web
+    from watchtower.http import APIError
+    app, store, _ = env
+    client = sign_up(app)
+
+    def boom(*a):
+        raise APIError("Zoho", "POST", "oauth/v2/token", 200, "Zoho rejected the code. Codes expire quickly.")
+
+    monkeypatch.setattr(web, "exchange_grant_code", boom)
+    page = client.get("/settings").get_data(as_text=True)
+    html = client.post("/settings", data={"csrf": csrf(page), "zoho_client_id": "1000.CLIENT",
+                                          "zoho_client_secret": "s3cret-value-xyz",
+                                          "zoho_grant_code": "1000.old"}).get_data(as_text=True)
+    assert "Your other changes were saved" in html and "Zoho rejected the code" in html
+    assert store.resolved("zoho_client_id") == "1000.CLIENT"
+    assert store.resolved("zoho_refresh_token") is None
+
+
+def test_each_section_can_be_tested_on_its_own(env):
+    app, store, _ = env
+    client = sign_up(app)
+    page = client.get("/settings").get_data(as_text=True)
+    html = client.post("/settings", data={"csrf": csrf(page), "test": "pd"}).get_data(as_text=True)
+    assert "PagerDuty: Fill in API key, Schedule ID first." in html

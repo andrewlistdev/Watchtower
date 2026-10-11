@@ -90,3 +90,29 @@ def test_pagerduty_parses_final_schedule():
     entries = c.schedule_entries("SCHED", datetime(2026, 10, 12, 14, tzinfo=timezone.utc), 48)
     assert [e.user_id for e in entries] == ["PPSNFCK", "PE77ZFQ"]
     assert c.session.headers["Authorization"] == "Token token=pdtok"
+
+
+def test_zoho_exchange_maps_errors(monkeypatch):
+    import pytest
+    from watchtower.http import APIError
+    from watchtower.servicedesk import exchange_grant_code
+    monkeypatch.setattr("watchtower.servicedesk.requests.post",
+                        lambda url, params, headers, timeout: Resp(200, {"error": "invalid_code"}))
+    with pytest.raises(APIError) as exc:
+        exchange_grant_code("https://accounts.zoho.com", "id", "sec", "code")
+    assert "expire" in exc.value.body
+    monkeypatch.setattr("watchtower.servicedesk.requests.post",
+                        lambda url, params, headers, timeout: Resp(200, {"access_token": "a", "refresh_token": "r"}))
+    assert exchange_grant_code("https://accounts.zoho.com", "id", "sec", "code") == "r"
+
+
+def test_org_lookup_parsing_handles_nesting():
+    from watchtower.arcticwolf import _find_records, describe_organization
+    data = {"data": {"organizations": [
+        {"uuid": "8F14E45F-CEEA-4E7A-9B2B-3C1E7F0A1D22", "displayName": "Arrowhead", "location": {"pod": "eu001"}},
+        {"id": "not-a-uuid", "name": "Other"},
+    ]}}
+    orgs = [describe_organization(r) for r in _find_records(data)]
+    assert orgs[0]["id"] == "8f14e45f-ceea-4e7a-9b2b-3c1e7f0a1d22" and orgs[0]["pod"] == "eu001"
+    assert orgs[0]["name"] == "Arrowhead"
+    assert orgs[1]["id"] is None and orgs[1]["pod"] is None

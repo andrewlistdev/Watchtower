@@ -136,3 +136,40 @@ class ServiceDeskClient:
 
     def ping(self) -> None:
         self._call("GET", "/requests", {"list_info": {"row_count": 1}})
+
+
+ZOHO_ERRORS = {
+    "invalid_code": "Zoho rejected the code. Codes expire a few minutes after you generate them and work "
+                    "once. Generate a new one and paste it straight away.",
+    "invalid_client": "Zoho didn't recognize the Client ID and secret. Check they come from the same Self "
+                      "Client, and that the Zoho data center matches your account.",
+    "invalid_client_secret": "The Client secret doesn't match the Client ID.",
+}
+
+
+def exchange_grant_code(accounts_url: str, client_id: str, client_secret: str, code: str) -> str:
+    """Swap a Self Client grant code for a long-lived refresh token."""
+    resp = requests.post(
+        f"{accounts_url}/oauth/v2/token",
+        params={
+            "code": code.strip(),
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "authorization_code",
+        },
+        headers={"User-Agent": USER_AGENT},
+        timeout=DEFAULT_TIMEOUT,
+    )
+    try:
+        data = resp.json()
+    except ValueError:
+        data = {}
+    error = data.get("error")
+    if resp.status_code >= 400 or error:
+        raise APIError("Zoho", "POST", "oauth/v2/token", resp.status_code,
+                       ZOHO_ERRORS.get(error, f"Zoho returned {error or resp.status_code}."))
+    token = data.get("refresh_token")
+    if not token:
+        raise APIError("Zoho", "POST", "oauth/v2/token", resp.status_code,
+                       "Zoho didn't return a refresh token. Generate a new code and try again.")
+    return token

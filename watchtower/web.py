@@ -16,7 +16,10 @@ from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, r
 
 from . import NAME, __version__, brand_assets
 from .config import Config, ConfigMissing
-from .runtime import check_connections, data_dir, shift_view, short_error
+from .arcticwolf import TICKET_API_URL, lookup_organizations
+from .http import APIError
+from .runtime import check_section, data_dir, shift_view, short_error
+from .servicedesk import exchange_grant_code
 from .settings_store import FIELDS, FIELDS_BY_KEY, SECTIONS, SettingsStore
 from .state import State
 from .status import FILTERS, api_message, ticket_status
@@ -26,6 +29,8 @@ log = logging.getLogger("web")
 
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{3,64}$")
+POD_RE = re.compile(r"^[a-z]{2}\d{3}$")
+AW_URL_RE = re.compile(r"^https://ticket-api\.managedgw\.[a-z]{2}\d{3}-prod\.arcticwolf\.net$")
 MIN_PASSWORD = 12
 PUBLIC_ENDPOINTS = {"static", "healthz", "login", "setup"}
 THEMES = {"dark": "Dark (default)", "light": "Light", "system": "Match my system"}
@@ -344,10 +349,11 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         if f.kind == "int":
             if not value.isdigit():
                 return "Enter a whole number."
-        if f.kind == "select" and value not in {c[0] for c in f.choices}:
+        if f.kind == "select" and value not in {c[0] for c in f.choices} and not (
+                key == "aw_base_url" and AW_URL_RE.match(value)):
             return "Pick one of the options."
         if key == "aw_org_uuid" and not UUID_RE.match(value.lower()):
-            return "That isn't a UUID like 550e8400-e29b-41d4-a716-446655440000."
+            return "That isn't an organization ID like 550e8400-e29b-41d4-a716-446655440000."
         if key == "sdp_base_url" and not value.startswith("https://"):
             return "Start with https://"
         if key.endswith("_email") and "@" not in value:
@@ -400,21 +406,70 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                     store.audit(g.user, "changed " + ", ".join(labels))
                     if worker:
                         worker.wake()
+                # Arctic Wolf: pick an organization found by the lookup.
+                org_choice = request.form.get("use_org", "")
+                if org_choice:
+                    org_id, _, pod = org_choice.partition("|")
+                    if UUID_RE.match(org_id) and POD_RE.match(pod):
+                        store.set("aw_org_uuid", org_id, g.user)
+                        store.set("aw_base_url", TICKET_API_URL.format(pod=pod), g.user)
+                        store.audit(g.user, f"set the Arctic Wolf organization to {org_id} (region {pod.upper()})")
+                        if worker:
+                            worker.wake()
+                        flash(f"Arctic Wolf organization set to {org_id}, region {pod.upper()}.")
+                    else:
+                        flash("That organization couldn't be used automatically. Enter its ID and region by hand.")
+                    return redirect(url_for("settings") + "#aw")
+
+                # Arctic Wolf: find the organization ID and region for the saved token.
+                if request.form.get("lookup") == "aw":
+                    token = store.resolved("aw_api_token")
+                    orgs, lookup_error = [], None
+                    if not token:
+                        lookup_error = "Save the Arctic Wolf API token first."
+                    else:
+                        try:
+                            orgs = lookup_organizations(token)
+                            if not orgs:
+                                lookup_error = "Arctic Wolf didn't return any organizations for this token."
+                        except Exception as exc:
+                            lookup_error = short_error(exc)
+                    return render_template("settings.html", **settings_context(
+                        errors, None, None, aw_orgs=orgs, aw_lookup_error=lookup_error))
+
+                # ServiceDesk Plus: swap a Zoho grant code for a refresh token.
+                code = request.form.get("zoho_grant_code", "").strip()
+                if code:
+                    cid, secret = store.resolved("zoho_client_id"), store.resolved("zoho_client_secret")
+                    if not (cid and secret):
+                        errors["zoho_grant_code"] = "Save the Client ID and Client secret first, then paste a new code."
+                    else:
+                        try:
+                            token = exchange_grant_code(store.resolved("zoho_accounts_url") or "https://accounts.zoho.com",
+                                                        cid, secret, code)
+                        except APIError as exc:
+                            errors["zoho_grant_code"] = exc.body
+                        except Exception:
+                            errors["zoho_grant_code"] = ("Couldn't reach Zoho. Check the Zoho data center setting and "
+                                                         "this machine's network access, then try a new code.")
+                        else:
+                            store.set("zoho_refresh_token", token, g.user)
+                            store.audit(g.user, "exchanged a Zoho grant code for a new refresh token")
+                            if worker:
+                                worker.wake()
+                            labels.append("Refresh token")
+                    if errors:
+                        return render_template("settings.html", **settings_context(errors, None, None, saved_other=bool(labels)))
+
                 test = request.form.get("test")
                 if test in {"aw", "sdp", "pd"}:
-                    cfg = current_config()
-                    if cfg is None:
-                        missing = ", ".join(f.label for f in store.missing_required())
-                        flash(f"Saved. To test, first fill in: {missing}.")
-                    else:
-                        results = check_connections(cfg, only=test)
-                        return render_template("settings.html", **settings_context(errors, results, test))
-                    return redirect(url_for("settings") + f"#{test}")
+                    results = [check_section(store.resolved, test)]
+                    return render_template("settings.html", **settings_context(errors, results, test))
                 flash("Settings saved." if labels else "No changes to save.")
                 return redirect(url_for("settings"))
         return render_template("settings.html", **settings_context(errors, results, None))
 
-    def settings_context(errors, results, tested):
+    def settings_context(errors, results, tested, **extra):
         sections = []
         for key, title, blurb in SECTIONS:
             sections.append({
@@ -423,7 +478,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
             })
         return dict(sections=sections, errors=errors, results=results, tested=tested,
                     form=request.form if errors else {}, audit=store.recent_audit(),
-                    missing=store.missing_required())
+                    missing=store.missing_required(), **extra)
 
     # ---- responders -------------------------------------------------------
 

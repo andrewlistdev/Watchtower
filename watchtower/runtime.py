@@ -75,6 +75,28 @@ def check_connections(cfg: Config, only: str | None = None) -> list[CheckResult]
     return results
 
 
+def check_section(get, section: str) -> CheckResult:
+    """Test one service using only that section's settings, so each can be checked on its own."""
+    from .settings_store import FIELDS, SECTIONS
+    name = dict((k, t) for k, t, _ in SECTIONS)[section]
+    missing = [f.label for f in FIELDS if f.section == section and f.required and not get(f.key)]
+    if missing:
+        return CheckResult(name, False, "Fill in " + ", ".join(missing) + " first.")
+    try:
+        if section == "aw":
+            next(iter(ArcticWolfClient(get("aw_base_url"), get("aw_api_token"), get("aw_org_uuid"))
+                      .list_tickets(["OPEN"])), None)
+        elif section == "sdp":
+            ServiceDeskClient(get("sdp_base_url"), get("zoho_accounts_url"), get("zoho_client_id"),
+                              get("zoho_client_secret"), get("zoho_refresh_token")).ping()
+        elif section == "pd":
+            PagerDutyClient(get("pd_api_token")).schedule_entries(get("pd_schedule_id"),
+                                                                   datetime.now(timezone.utc), 1)
+        return CheckResult(name, True, "Connected")
+    except Exception as exc:  # report every failure the same way
+        return CheckResult(name, False, short_error(exc))
+
+
 def short_error(exc: Exception) -> str:
     text = str(exc)
     for marker in ("401", "403", "404"):
@@ -82,6 +104,9 @@ def short_error(exc: Exception) -> str:
             return {"401": "Rejected the credentials (401).",
                     "403": "Credentials work but lack permission (403).",
                     "404": "Not found (404). Check the ID or URL."}[marker]
+    body = getattr(exc, "body", None)
+    if getattr(exc, "service", None) == "Zoho" and body and not body.lstrip().startswith("{"):
+        return body
     if "Max retries exceeded" in text or "NameResolution" in text or "ProxyError" in text:
         return "Couldn't reach the server. Check the URL and this machine's network access."
     return text[:300]

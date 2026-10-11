@@ -10,7 +10,7 @@ ticket once the request is resolved.
 Watchtower is a coordination layer. It doesn't detect or monitor anything itself;
 Arctic Wolf creates the tickets.
 
-Current version: **1.1.0** ([changelog](CHANGELOG.md)). Brand and UI rules:
+Current version: **1.2.0** ([changelog](CHANGELOG.md)). Brand and UI rules:
 [docs/BRAND_GUIDE.md](docs/BRAND_GUIDE.md).
 
 1. **Routing.** Each new Arctic Wolf ticket becomes an SDP request (`[AW-12345] <title>`)
@@ -58,7 +58,7 @@ docker compose -f ../aw-sdp-pd-sync/docker-compose.yml down
 docker compose up --no-start --build
 docker run --rm --user 0 --entrypoint sh \
   -v aw-sdp-pd-sync_sync-data:/from:ro -v watchtower_watchtower-data:/to \
-  watchtower:1.1.0 -c 'test -f /from/state.db || { echo "Old volume not found. Check its name with: docker volume ls"; exit 1; }; cp -a /from/. /to/ && chown -R 10001 /to && echo Copied.'
+  watchtower:1.2.0 -c 'test -f /from/state.db || { echo "Old volume not found. Check its name with: docker volume ls"; exit 1; }; cp -a /from/. /to/ && chown -R 10001 /to && echo Copied.'
 docker compose up -d
 ```
 
@@ -92,25 +92,42 @@ plain HTTP.
 
 ## Getting the credentials
 
-**Arctic Wolf:** the Bearer token for the Ticket API and your organization UUID. The API
-spec doesn't say how tokens are issued or how long they last; confirm with Arctic Wolf.
+Everything is entered on the **Settings** page; you don't need the terminal. Each
+section has **Save and test connection**, which tests that service on its own.
 
-**ServiceDesk Plus Cloud (Zoho OAuth):**
-1. In the Zoho API Console for your data center (https://api-console.zoho.com for US),
-   create a **Self Client** and copy the Client ID and Client Secret.
-2. Generate a code with scope `SDPOnDemand.requests.ALL`.
-3. Exchange it for a refresh token straight away (the code expires in minutes):
-   ```bash
-   curl -X POST "https://accounts.zoho.com/oauth/v2/token" \
-     -d grant_type=authorization_code -d client_id=CLIENT_ID \
-     -d client_secret=CLIENT_SECRET -d code=GENERATED_CODE
-   ```
-4. Paste `refresh_token` from the response into Settings.
+**Arctic Wolf**
+1. Sign in to the Unified Portal (dashboard.arcticwolf.com), then go to
+   **Organization Profile → Personal API Keys → Create an API Key**. Name it
+   "Watchtower", pick an expiry, click **Create Key** and copy the token. It's shown once.
+2. Paste it into **API token** and click **Save and look up organization**. Watchtower asks
+   Arctic Wolf which organizations the key can see; click **Use this organization** to
+   fill in the region and organization ID.
 
-The SDP URL includes your portal, e.g. `https://sdpondemand.manageengine.com/app/itdesk`.
-The status names in Settings must exist in your SDP instance.
+The key carries your own Unified Portal permissions and stops working when it expires,
+so set a reminder to replace it.
 
-**PagerDuty:** a read-only REST API key and the schedule ID (the end of the schedule's URL).
+**ServiceDesk Plus Cloud (Zoho)**
+1. Open the Zoho API Console for your data center (https://api-console.zoho.com in
+   the US), choose **Self Client → Create Now**, and copy the **Client ID** and **Client
+   Secret** from the Client Secret tab into Settings.
+2. On the **Generate Code** tab, enter scope `SDPOnDemand.requests.ALL`, pick the longest
+   time duration, add a description and click **Create**. If it asks for a portal, pick
+   your ServiceDesk Plus portal.
+3. Paste the code into **Or paste a Zoho grant code** and save straight away. Watchtower
+   exchanges it for a refresh token and stores that.
+4. Fill in **SDP URL with portal**, e.g. `https://sdpondemand.manageengine.com/app/itdesk`
+   (the address you see after signing in to SDP, up to the portal name).
+
+Use a technician account that is allowed to assign requests to all your responders. The
+status names in Settings must exist in your SDP instance.
+
+**PagerDuty**
+1. **Integrations → Developer Tools → API Access Keys → Create New API Key**. Describe it
+   as "Watchtower", tick **Read-only API Key**, create it and copy it. Admins and the
+   account owner can do this; otherwise use a personal key from **My Profile → User
+   Settings → Create API User Token**.
+2. Open the schedule your team uses; the **Schedule ID** is the end of its address
+   (`/schedules/PXXXXXX`).
 
 ## Commands
 

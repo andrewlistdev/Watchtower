@@ -66,7 +66,7 @@ class Field:
 
 SECTIONS = [
     ("aw", "Arctic Wolf", "Ticket source. Watchtower picks up new tickets here and closes them when "
-                          "they're resolved in ServiceDesk Plus. The token is the Bearer token for the Ticket API."),
+                          "they're resolved in ServiceDesk Plus."),
     ("sdp", "ServiceDesk Plus Cloud", "Where tickets are worked and owned. Uses a Zoho self-client refresh token "
                                       "with the SDPOnDemand.requests.ALL scope."),
     ("pd", "PagerDuty", "Who is on call. A read-only API key is enough."),
@@ -76,11 +76,14 @@ SECTIONS = [
 
 FIELDS: list[Field] = [
     # Arctic Wolf
+    Field("aw_api_token", "API token", "aw", kind="secret", required=True,
+          help="A Personal API Key from the Unified Portal: Organization Profile, Personal API Keys."),
     Field("aw_base_url", "Region", "aw", kind="select", required=True,
-          default=AW_REGIONS[0][0], choices=tuple(AW_REGIONS)),
-    Field("aw_org_uuid", "Organization UUID", "aw", required=True,
-          placeholder="550e8400-e29b-41d4-a716-446655440000"),
-    Field("aw_api_token", "API token", "aw", kind="secret", required=True),
+          default=AW_REGIONS[0][0], choices=tuple(AW_REGIONS),
+          help="Filled in by \u201cSave and look up organization\u201d."),
+    Field("aw_org_uuid", "Organization ID", "aw", required=True,
+          placeholder="550e8400-e29b-41d4-a716-446655440000",
+          help="Filled in by \u201cSave and look up organization\u201d."),
     Field("aw_open_statuses", "Statuses to import", "aw", kind="list",
           default="NEW,OPEN,HOLD,PENDING", help="Comma-separated Arctic Wolf statuses."),
     Field("aw_backfill_open", "Import tickets already open", "aw", kind="bool", default="false",
@@ -90,7 +93,8 @@ FIELDS: list[Field] = [
           placeholder="https://sdpondemand.manageengine.com/app/itdesk"),
     Field("zoho_accounts_url", "Zoho data center", "sdp", kind="select",
           default=ZOHO_ACCOUNTS[0][0], choices=tuple(ZOHO_ACCOUNTS)),
-    Field("zoho_client_id", "Client ID", "sdp", required=True),
+    Field("zoho_client_id", "Client ID", "sdp", required=True,
+          help="From the Zoho API Console: Self Client, Client Secret tab."),
     Field("zoho_client_secret", "Client secret", "sdp", kind="secret", required=True),
     Field("zoho_refresh_token", "Refresh token", "sdp", kind="secret", required=True),
     Field("sdp_ack_status", "Status after routing", "sdp", default="In Progress",
@@ -112,7 +116,8 @@ FIELDS: list[Field] = [
     Field("sdp_priority_high", "Priority for AW High", "sdp", default="High"),
     Field("sdp_priority_urgent", "Priority for AW Urgent", "sdp", default="Urgent"),
     # PagerDuty
-    Field("pd_api_token", "API key", "pd", kind="secret", required=True),
+    Field("pd_api_token", "API key", "pd", kind="secret", required=True,
+          help="Integrations, Developer Tools, API Access Keys. Tick Read-only."),
     Field("pd_schedule_id", "Schedule ID", "pd", required=True, placeholder="PXXXXXX",
           help="The ID at the end of the schedule's URL."),
     Field("handoff_minutes", "Handoff window (minutes)", "pd", kind="int", default="30",
