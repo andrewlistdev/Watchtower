@@ -1,0 +1,20 @@
+services:
+  aw-sdp-pd-sync:
+    build: .
+    image: aw-sdp-pd-sync:latest
+    container_name: aw-sdp-pd-sync
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      # Named volume so the non-root container user owns it without a host chown.
+      - sync-data:/data
+      # Edit the identity map without rebuilding the image (restart to reload).
+      - ./config/identity_map.csv:/app/config/identity_map.csv:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  sync-data:
