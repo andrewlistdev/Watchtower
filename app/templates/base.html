@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} | Ticket relay</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="{{ url_for('dashboard') }}">Ticket relay <span>Arctic Wolf to ServiceDesk Plus</span></a>
+    {% if g.user %}
+    <nav aria-label="Main">
+      {% set ep = request.endpoint %}
+      <a href="{{ url_for('dashboard') }}" {% if ep == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="{{ url_for('people') }}" {% if ep == 'people' %}aria-current="page"{% endif %}>People</a>
+      <a href="{{ url_for('settings') }}" {% if ep == 'settings' %}aria-current="page"{% endif %}>Settings</a>
+      <a href="{{ url_for('account') }}" {% if ep == 'account' %}aria-current="page"{% endif %}>{{ g.user }}</a>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="linklike" type="submit">Sign out</button>
+      </form>
+    </nav>
+    {% endif %}
+  </header>
+  <main {% block main_attrs %}{% endblock %}>
+    {% for message in get_flashed_messages() %}
+      <p class="flash" role="status">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -23,7 +23,6 @@ def make_cfg(**overrides) -> Config:
         sdp_aw_id_udf="udf_sline_301", sdp_fallback_technician_email="",
         pd_api_token="p", pd_schedule_id="SCHED", handoff_minutes=30, pd_lookahead_hours=48,
         poll_seconds=60, dry_run=False, aw_closed_note=True,
-        identity_map_path="", db_path=":memory:",
         priority_map={"LOW": "Low", "NORMAL": "Medium", "HIGH": "High", "URGENT": "Urgent"},
     )
     base.update(overrides)

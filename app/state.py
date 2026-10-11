@@ -32,8 +32,10 @@ def utcnow() -> str:
 
 class State:
     def __init__(self, path: str):
-        self.db = sqlite3.connect(path)
+        self.db = sqlite3.connect(path, timeout=15)
         self.db.row_factory = sqlite3.Row
+        if path != ":memory:":
+            self.db.execute("PRAGMA journal_mode=WAL")  # GUI reads while the worker writes
         self.db.executescript(SCHEMA)
         self.db.commit()
 

@@ -1,31 +1,25 @@
-"""Runtime configuration, read from environment variables (see .env.example)."""
+"""Runtime configuration, resolved from the admin GUI settings (with environment fallback)."""
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
+from typing import Callable
 
 
-def _req(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise SystemExit(f"Missing required environment variable: {name}")
-    return value
+class ConfigMissing(Exception):
+    def __init__(self, missing: list[str]):
+        self.missing = missing
+        super().__init__("Missing required settings: " + ", ".join(missing))
 
 
-def _opt(name: str, default: str = "") -> str:
-    return os.environ.get(name, default).strip()
-
-
-def _bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
-    if raw is None or raw.strip() == "":
+def _bool(value: str | None, default: bool) -> bool:
+    if value is None or str(value).strip() == "":
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _list(name: str, default: str) -> list[str]:
-    return [p.strip() for p in _opt(name, default).split(",") if p.strip()]
+def _list(value: str | None) -> list[str]:
+    return [p.strip() for p in (value or "").split(",") if p.strip()]
 
 
 @dataclass
@@ -56,47 +50,63 @@ class Config:
     handoff_minutes: int
     pd_lookahead_hours: int
 
-    # Service behaviour
+    # Behaviour
     poll_seconds: int
     dry_run: bool
     aw_closed_note: bool
-    identity_map_path: str
-    db_path: str
     priority_map: dict[str, str] = field(default_factory=dict)
+    display_timezone: str = "UTC"
+
+    @property
+    def zone(self):
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        try:
+            return ZoneInfo(self.display_timezone or "UTC")
+        except (ZoneInfoNotFoundError, ValueError):
+            return ZoneInfo("UTC")
 
     @classmethod
-    def from_env(cls) -> "Config":
-        priority_map = {
-            "LOW": _opt("SDP_PRIORITY_LOW", "Low"),
-            "NORMAL": _opt("SDP_PRIORITY_NORMAL", "Medium"),
-            "HIGH": _opt("SDP_PRIORITY_HIGH", "High"),
-            "URGENT": _opt("SDP_PRIORITY_URGENT", "Urgent"),
-        }
+    def load(cls, get: Callable[[str], str | None]) -> "Config":
+        """Build from a lookup function (SettingsStore.resolved). Raises ConfigMissing."""
+        from .settings_store import FIELDS, SECTIONS
+
+        titles = {key: title for key, title, _ in SECTIONS}
+        missing = [f"{titles[f.section]}: {f.label}" for f in FIELDS if f.required and not get(f.key)]
+        if missing:
+            raise ConfigMissing(missing)
+
+        def s(key: str) -> str:
+            return (get(key) or "").strip()
+
         return cls(
-            aw_base_url=_req("AW_BASE_URL").rstrip("/"),
-            aw_api_token=_req("AW_API_TOKEN"),
-            aw_org_uuid=_req("AW_ORG_UUID"),
-            aw_open_statuses=_list("AW_OPEN_STATUSES", "NEW,OPEN,HOLD,PENDING"),
-            aw_backfill_open=_bool("AW_BACKFILL_OPEN", False),
-            sdp_base_url=_req("SDP_BASE_URL").rstrip("/"),
-            zoho_accounts_url=_opt("ZOHO_ACCOUNTS_URL", "https://accounts.zoho.com").rstrip("/"),
-            zoho_client_id=_req("ZOHO_CLIENT_ID"),
-            zoho_client_secret=_req("ZOHO_CLIENT_SECRET"),
-            zoho_refresh_token=_req("ZOHO_REFRESH_TOKEN"),
-            sdp_ack_status=_opt("SDP_ACK_STATUS", "In Progress"),
-            sdp_close_statuses=_list("SDP_CLOSE_STATUSES", "Resolved,Closed"),
-            sdp_requester_email=_opt("SDP_REQUESTER_EMAIL"),
-            sdp_group=_opt("SDP_GROUP"),
-            sdp_aw_id_udf=_opt("SDP_AW_ID_UDF"),
-            sdp_fallback_technician_email=_opt("SDP_FALLBACK_TECHNICIAN_EMAIL"),
-            pd_api_token=_req("PD_API_TOKEN"),
-            pd_schedule_id=_req("PD_SCHEDULE_ID"),
-            handoff_minutes=int(_opt("HANDOFF_MINUTES", "30")),
-            pd_lookahead_hours=int(_opt("PD_LOOKAHEAD_HOURS", "48")),
-            poll_seconds=int(_opt("POLL_SECONDS", "60")),
-            dry_run=_bool("DRY_RUN", True),
-            aw_closed_note=_bool("AW_CLOSED_NOTE", True),
-            identity_map_path=_opt("IDENTITY_MAP_PATH", "/app/config/identity_map.csv"),
-            db_path=_opt("DB_PATH", "/data/state.db"),
-            priority_map=priority_map,
+            aw_base_url=s("aw_base_url").rstrip("/"),
+            aw_api_token=s("aw_api_token"),
+            aw_org_uuid=s("aw_org_uuid"),
+            aw_open_statuses=_list(get("aw_open_statuses")),
+            aw_backfill_open=_bool(get("aw_backfill_open"), False),
+            sdp_base_url=s("sdp_base_url").rstrip("/"),
+            zoho_accounts_url=s("zoho_accounts_url").rstrip("/"),
+            zoho_client_id=s("zoho_client_id"),
+            zoho_client_secret=s("zoho_client_secret"),
+            zoho_refresh_token=s("zoho_refresh_token"),
+            sdp_ack_status=s("sdp_ack_status"),
+            sdp_close_statuses=_list(get("sdp_close_statuses")),
+            sdp_requester_email=s("sdp_requester_email"),
+            sdp_group=s("sdp_group"),
+            sdp_aw_id_udf=s("sdp_aw_id_udf"),
+            sdp_fallback_technician_email=s("sdp_fallback_technician_email"),
+            pd_api_token=s("pd_api_token"),
+            pd_schedule_id=s("pd_schedule_id"),
+            handoff_minutes=int(s("handoff_minutes") or 30),
+            pd_lookahead_hours=int(s("pd_lookahead_hours") or 48),
+            poll_seconds=max(15, int(s("poll_seconds") or 60)),
+            dry_run=_bool(get("dry_run"), True),
+            aw_closed_note=_bool(get("aw_closed_note"), True),
+            priority_map={
+                "LOW": s("sdp_priority_low"),
+                "NORMAL": s("sdp_priority_normal"),
+                "HIGH": s("sdp_priority_high"),
+                "URGENT": s("sdp_priority_urgent"),
+            },
+            display_timezone=s("display_timezone") or "UTC",
         )

@@ -4,12 +4,19 @@ services:
     image: aw-sdp-pd-sync:latest
     container_name: aw-sdp-pd-sync
     restart: unless-stopped
-    env_file: .env
+    ports:
+      # Admin page at http://localhost:8080. Bound to this machine only; see README
+      # before exposing it to your network.
+      - "127.0.0.1:8080:8080"
+    environment:
+      TZ: America/New_York
+    env_file:
+      # Optional. Credentials are entered on the admin Settings page, not here.
+      - path: .env
+        required: false
     volumes:
-      # Named volume so the non-root container user owns it without a host chown.
+      # Settings, encrypted credentials, the encryption key and ticket state.
       - sync-data:/data
-      # Edit the identity map without rebuilding the image (restart to reload).
-      - ./config/identity_map.csv:/app/config/identity_map.csv:ro
     logging:
       driver: json-file
       options:

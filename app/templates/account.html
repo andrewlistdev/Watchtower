@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Account{% endblock %}
+{% block content %}
+<h1>Your account</h1>
+
+<section class="block" aria-labelledby="pw-h">
+  <h2 id="pw-h">Change password</h2>
+  <form method="post" class="stack" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="password">
+    <div class="row">
+      <label for="current">Current password</label>
+      <div>
+        <input id="current" name="current" type="password" autocomplete="current-password" {% if errors.current %}aria-invalid="true"{% endif %}>
+        {% if errors.current %}<p class="field-error">{{ errors.current }}</p>{% endif %}
+      </div>
+    </div>
+    <div class="row">
+      <label for="new">New password</label>
+      <div>
+        <input id="new" name="new" type="password" autocomplete="new-password" {% if errors.new %}aria-invalid="true"{% endif %}>
+        {% if errors.new %}<p class="field-error">{{ errors.new }}</p>{% else %}<p class="help">At least 12 characters.</p>{% endif %}
+      </div>
+    </div>
+    <div class="row">
+      <label for="confirm">Confirm new password</label>
+      <div>
+        <input id="confirm" name="confirm" type="password" autocomplete="new-password" {% if errors.confirm %}aria-invalid="true"{% endif %}>
+        {% if errors.confirm %}<p class="field-error">{{ errors.confirm }}</p>{% endif %}
+      </div>
+    </div>
+    <div><button type="submit">Change password</button></div>
+  </form>
+</section>
+
+<section class="block" aria-labelledby="admins-h">
+  <h2 id="admins-h">Admins</h2>
+  <p>{% for a in admins %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+  <form method="post" class="stack" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add">
+    <div class="row">
+      <label for="username">New admin's username</label>
+      <div>
+        <input id="username" name="username" autocomplete="off" {% if errors.username %}aria-invalid="true"{% endif %}>
+        {% if errors.username %}<p class="field-error">{{ errors.username }}</p>{% endif %}
+      </div>
+    </div>
+    <div class="row">
+      <label for="password">Their password</label>
+      <div>
+        <input id="password" name="password" type="password" autocomplete="new-password" {% if errors.password %}aria-invalid="true"{% endif %}>
+        {% if errors.password %}<p class="field-error">{{ errors.password }}</p>{% else %}<p class="help">At least 12 characters. They can change it after signing in.</p>{% endif %}
+      </div>
+    </div>
+    <div><button type="submit" class="secondary">Add admin</button></div>
+  </form>
+</section>
+{% endblock %}

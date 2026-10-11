@@ -7,7 +7,7 @@ HANDOFF_MINUTES, in which case it goes to the person coming on shift next.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 
 
 @dataclass(frozen=True)
@@ -46,12 +46,13 @@ def merge_adjacent(entries: list[ScheduleEntry]) -> list[ScheduleEntry]:
     return merged
 
 
-def _fmt(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+def _fmt(dt: datetime, zone: tzinfo | None = None) -> str:
+    return dt.astimezone(zone or timezone.utc).strftime("%a %-I:%M %p %Z")
 
 
 def pick_on_shift(
-    entries: list[ScheduleEntry], now: datetime, handoff_minutes: int = 30
+    entries: list[ScheduleEntry], now: datetime, handoff_minutes: int = 30,
+    zone: tzinfo | None = None,
 ) -> Selection | None:
     shifts = merge_adjacent(entries)
     handoff = timedelta(minutes=handoff_minutes)
@@ -63,14 +64,14 @@ def pick_on_shift(
             return None
         return Selection(
             upcoming,
-            f"No one on shift now; {upcoming.user_name} comes on at {_fmt(upcoming.start)}",
+            f"No one on shift now; {upcoming.user_name} comes on at {_fmt(upcoming.start, zone)}",
         )
 
     remaining = current.end - now
     if remaining > handoff:
         return Selection(
             current,
-            f"{current.user_name} is on shift until {_fmt(current.end)}",
+            f"{current.user_name} is on shift until {_fmt(current.end, zone)}",
         )
 
     following = next(
@@ -79,12 +80,12 @@ def pick_on_shift(
     if following is None:
         return Selection(
             current,
-            f"{current.user_name}'s shift ends at {_fmt(current.end)} but no next shift is "
+            f"{current.user_name}'s shift ends at {_fmt(current.end, zone)} but no next shift is "
             f"scheduled in the lookahead window, so it stays with them",
         )
     minutes_left = int(remaining.total_seconds() // 60)
     return Selection(
         following,
         f"{current.user_name}'s shift ends in {minutes_left} min "
-        f"(at {_fmt(current.end)}), so it goes to {following.user_name}, next on shift",
+        f"(at {_fmt(current.end, zone)}), so it goes to {following.user_name}, next on shift",
     )

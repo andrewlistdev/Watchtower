@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p class="muted">Credentials are encrypted before they're stored and are never shown again after saving.
+  Changes take effect on the next check; no restart needed.</p>
+
+{% if errors %}
+  <div class="error-box" role="alert">Some settings weren't saved. Fix the fields marked below and save again.</div>
+{% elif missing %}
+  <div class="notice">Still needed before the relay can start:
+    {% for f in missing %}{{ f.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('settings') }}" novalidate autocomplete="off">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  {# Pressing Enter in any field saves; it shouldn't trigger the first section's test button. #}
+  <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Save changes</button>
+
+  {% for s in sections %}
+  <section class="settings-section" id="{{ s.key }}" aria-labelledby="{{ s.key }}-h">
+    <div class="section-head">
+      <h2 id="{{ s.key }}-h">{{ s.title }}</h2>
+      <p class="muted">{{ s.blurb }}</p>
+    </div>
+
+    {% if tested == s.key and results %}
+      {% for r in results %}
+        <p class="test-result {{ 'ok' if r.ok else 'bad' }}" role="status">
+          {{ r.service }}: {{ 'Connected. Settings saved.' if r.ok else r.message }}</p>
+      {% endfor %}
+    {% endif %}
+
+    {% for info in s.fields %}{% set f = info.field %}
+    <div class="row">
+      <div>
+        <label for="{{ f.key }}">{{ f.label }}{% if f.required %} <span class="muted">(required)</span>{% endif %}</label>
+        {% if f.help %}<p class="help">{{ f.help }}</p>{% endif %}
+      </div>
+      <div>
+        {% if f.kind == 'secret' %}
+          <input id="{{ f.key }}" name="{{ f.key }}" type="password" autocomplete="new-password" spellcheck="false"
+                 placeholder="{{ 'Enter a new value to replace it' if info.source in ('saved', 'environment') else 'Paste the value' }}"
+                 {% if errors[f.key] %}aria-invalid="true"{% endif %} aria-describedby="{{ f.key }}-meta">
+          <p class="meta{% if info.source == 'missing' and f.required %} missing{% endif %}" id="{{ f.key }}-meta">
+            {% if info.source == 'saved' %}Saved, {{ info.display }}. Updated {{ info.updated_at | local }} by {{ info.updated_by }}.
+            {% elif info.source == 'environment' %}From the container environment, {{ info.display }}. A value saved here takes over.
+            {% else %}Not set.{% if f.required %} Needed to start.{% endif %}{% endif %}
+          </p>
+          {% if info.source == 'saved' %}
+            <label class="inline"><input type="checkbox" name="clear_{{ f.key }}"> Remove the saved value</label>
+          {% endif %}
+        {% elif f.kind == 'bool' %}
+          {% set is_on = (form.get(f.key) == 'on') if form else (info.display == 'true') %}
+          <input type="hidden" name="present_{{ f.key }}" value="1">
+          <label class="inline"><input id="{{ f.key }}" type="checkbox" name="{{ f.key }}"
+            {% if is_on %}checked{% endif %}> On</label>
+        {% elif f.kind == 'select' %}
+          {% set current = form.get(f.key) if form else info.display %}
+          <select id="{{ f.key }}" name="{{ f.key }}">
+            {% for value, text in f.choices %}
+              <option value="{{ value }}" {% if value == current %}selected{% endif %}>{{ text }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input id="{{ f.key }}" name="{{ f.key }}" type="text" spellcheck="false"
+                 value="{{ form.get(f.key) if form else info.display }}" placeholder="{{ f.placeholder }}"
+                 {% if f.kind == 'int' %}inputmode="numeric"{% endif %}
+                 {% if errors[f.key] %}aria-invalid="true" aria-describedby="{{ f.key }}-err"{% endif %}>
+          {% if info.source == 'environment' %}<p class="meta">From the container environment. A value saved here takes over.</p>
+          {% elif info.source == 'missing' and f.required %}<p class="meta missing">Needed to start.</p>{% endif %}
+        {% endif %}
+        {% if errors[f.key] %}<p class="field-error" id="{{ f.key }}-err">{{ errors[f.key] }}</p>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if s.key in ('aw', 'sdp', 'pd') %}
+      <div class="section-actions">
+        <button type="submit" name="test" value="{{ s.key }}" class="secondary">Save and test connection</button>
+      </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <div class="savebar">
+    <button type="submit">Save changes</button>
+    <span class="muted">Blank credential fields keep what's already saved.</span>
+  </div>
+</form>
+
+<section class="block" aria-labelledby="audit-h">
+  <h2 id="audit-h">Recent changes</h2>
+  {% if audit %}
+    <ul class="audit">
+      {% for a in audit %}<li><span class="muted">{{ a.at | local }}</span> {{ a.actor }} {{ a.action }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Nothing changed yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

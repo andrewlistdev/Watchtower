@@ -1,119 +1,113 @@
-# aw-sdp-pd-sync
+# aw-sdp-pd-sync (Ticket relay)
 
-Keeps Arctic Wolf tickets and ServiceDesk Plus Cloud requests in step, and assigns
-them to whoever is on shift in PagerDuty.
+Keeps Arctic Wolf tickets and ServiceDesk Plus Cloud requests in step, assigns them to
+whoever is on shift in PagerDuty, and gives you an admin page to manage it.
 
 1. **New Arctic Wolf ticket → SDP request.** Each new AW ticket becomes an SDP request
    (`[AW-12345] <title>`), assigned to the person on shift and acknowledged: status set
-   to `SDP_ACK_STATUS` plus a note that marks first response.
+   to "In Progress" plus a note that marks first response.
 2. **Shift handoff.** Whoever is on the PagerDuty schedule gets the ticket, unless their
    shift ends within 30 minutes; then it goes to the person coming on next.
-3. **SDP Resolved/Closed → AW closed.** When the SDP request reaches one of
-   `SDP_CLOSE_STATUSES`, the AW ticket is closed with the SDP resolution as the closing
-   comment.
+3. **SDP Resolved/Closed → AW closed.** The AW ticket is closed with the SDP resolution as
+   the closing comment.
 4. **AW closed first → SDP note.** If Arctic Wolf closes a ticket on their side, the SDP
-   request gets a note so the technician knows.
+   request gets a note.
 
 Diagrams of each flow are in [docs/flows.md](docs/flows.md).
 
-## Quick start
+## Run it
 
 ```bash
-git clone <this repo> && cd aw-sdp-pd-sync
-cp .env.example .env          # fill in credentials (see below); leave DRY_RUN=true
-docker compose build
-
-docker compose run --rm aw-sdp-pd-sync check    # tests all three API credentials
-docker compose run --rm aw-sdp-pd-sync whois    # who would get a ticket right now, and why
-docker compose up -d                            # dry run: logs what it would do
-docker compose logs -f
+docker compose up -d --build
+docker compose logs aw-sdp-pd-sync
 ```
 
-When the dry-run log looks right, set `DRY_RUN=false` in `.env` and
-`docker compose up -d` again.
+The log shows a **setup code**. Open <http://localhost:8080>, enter the code, and create
+your admin account. Then:
 
-**First live run:** with `AW_BACKFILL_OPEN=false` (the default), only AW tickets created
-after the first live run are imported. Set it to `true` before the first live run to
-also bring in every ticket that is open at that moment.
+1. **Settings:** enter the Arctic Wolf, ServiceDesk Plus and PagerDuty credentials. Use
+   **Save and test connection** in each section.
+2. **People:** check the list of who can be assigned (pre-filled from
+   `config/identity_map.csv` on first start).
+3. **Dashboard:** confirm the shift strip and the "What going live would do now" preview.
+4. **Settings → Sync behaviour:** turn off **Dry run** to go live.
 
-## Credentials
+The service starts in dry run and waits quietly until the required settings are saved,
+so there's no restart loop. Changes saved in the admin page apply on the next check;
+no restart needed.
 
-### Arctic Wolf
-- `AW_BASE_URL`: your region's server (US001/US002/US003/EU001/AU001/CA001).
-- `AW_API_TOKEN`: the Bearer token for the Ticket API.
-- `AW_ORG_UUID`: your organization UUID.
+## Where secrets live
 
-The API spec doesn't say how tokens are issued or how long they last. Confirm with
-Arctic Wolf; if tokens expire, the service will log 401s until `.env` is updated.
+- Credentials are encrypted (Fernet) before they're written to the database in the
+  `sync-data` volume. The key is generated once into `/data/secret.key` (mode 600), or
+  supplied through `APP_ENCRYPTION_KEY`.
+- After saving, the page shows only the last four characters, who saved it and when.
+  Leaving a credential field blank keeps the saved value.
+- Every settings change is listed under **Recent changes**, without values.
+- Admin passwords are hashed (scrypt). Five failed sign-ins from one address lock it out
+  for five minutes.
 
-### ServiceDesk Plus Cloud (Zoho OAuth)
-1. Go to the Zoho API Console for your data center (https://api-console.zoho.com
-   for US) → **Self Client** → note the Client ID and Client Secret.
-2. Generate a code with scope `SDPOnDemand.requests.ALL` (a few minutes' expiry).
-3. Exchange it for a refresh token straight away:
+Anyone who can read the whole `sync-data` volume (database plus key file) can decrypt the
+credentials, so treat that volume like a password vault. To keep the key out of the
+volume, set `APP_ENCRYPTION_KEY` from your secrets manager (see `.env.example`).
+
+**Network exposure.** Compose binds the page to `127.0.0.1:8080`, so only the machine
+running Docker can reach it. To use it from elsewhere, put it behind an HTTPS reverse
+proxy, then change the port binding and set `COOKIE_SECURE=true`. Don't publish it over
+plain HTTP.
+
+## Getting the credentials
+
+**Arctic Wolf:** the Bearer token for the Ticket API and your organization UUID. The API
+spec doesn't say how tokens are issued or how long they last; confirm with Arctic Wolf.
+
+**ServiceDesk Plus Cloud (Zoho OAuth):**
+1. In the Zoho API Console for your data center (https://api-console.zoho.com for US),
+   create a **Self Client** and copy the Client ID and Client Secret.
+2. Generate a code with scope `SDPOnDemand.requests.ALL`.
+3. Exchange it for a refresh token straight away (the code expires in minutes):
    ```bash
    curl -X POST "https://accounts.zoho.com/oauth/v2/token" \
      -d grant_type=authorization_code -d client_id=CLIENT_ID \
      -d client_secret=CLIENT_SECRET -d code=GENERATED_CODE
    ```
-4. Put `refresh_token` from the response in `ZOHO_REFRESH_TOKEN`. The service refreshes
-   access tokens itself.
+4. Paste `refresh_token` from the response into Settings.
 
-Use the accounts server and SDP domain for your data center (`.eu`, `.in`, `.com.au`,
-etc.). `SDP_BASE_URL` includes your portal path, e.g.
-`https://sdpondemand.manageengine.com/app/itdesk`.
+The SDP URL includes your portal, e.g. `https://sdpondemand.manageengine.com/app/itdesk`.
+The status names in Settings must exist in your SDP instance.
 
-Create the requests from a technician account that is allowed to assign to all
-six people. `SDP_ACK_STATUS` and the close statuses must match status names that exist
-in your SDP instance.
-
-### PagerDuty
-- `PD_API_TOKEN`: a **read-only** REST API key is enough.
-- `PD_SCHEDULE_ID`: the ID at the end of the schedule's URL (`/schedules/PXXXXXX`).
-
-The service reads the schedule's final layer, so overrides are respected.
-
-## Identity map
-
-`config/identity_map.csv` maps PagerDuty user IDs to people. The SDP technician is
-found by email: `sdp_email` if filled in, otherwise `aw_email`. Set `status` to anything
-other than `Active` to stop assigning to someone. Restart the container after editing.
-
-If PagerDuty shows someone who isn't in the map (or is inactive), the ticket goes to
-`SDP_FALLBACK_TECHNICIAN_EMAIL` if set, otherwise it's left unassigned with a note
-explaining why. If SDP rejects the technician email, the request is still created,
-unassigned, with a note.
+**PagerDuty:** a read-only REST API key and the schedule ID (the end of the schedule's URL).
 
 ## Commands
 
-All read-only except `run`/`once` (and those only write when `DRY_RUN=false`).
-
 | Command | What it does |
 |---|---|
-| `run` | Poll forever (the container default) |
-| `once` | One sync cycle, then exit |
-| `check` | Test credentials for Arctic Wolf, SDP and PagerDuty |
-| `whois [--at 2026-10-12T21:45:00Z]` | Show upcoming shifts and who would get a ticket |
-| `status` | List tracked tickets and any errors |
-| `resolve-stuck AW_ID SDP_ID\|none` | Fix a ticket stuck in `creating` (see below) |
+| `docker compose logs -f aw-sdp-pd-sync` | Watch activity (and find the setup code) |
+| `docker compose run --rm aw-sdp-pd-sync check` | Test all three connections |
+| `docker compose run --rm aw-sdp-pd-sync whois` | Who would get a ticket right now |
+| `docker compose run --rm aw-sdp-pd-sync status` | Tracked tickets and errors |
+| `docker compose run --rm aw-sdp-pd-sync resolve-stuck AW_ID SDP_ID\|none` | Fix a ticket stuck in "Check SDP" |
+| `docker compose run --rm aw-sdp-pd-sync reset-admins` | Locked out: removes admin accounts; open the page and use the new setup code from the log |
+| `docker compose up -d --build` | Deploy code changes |
 
-Run them with `docker compose run --rm aw-sdp-pd-sync <command>`.
+Never run `docker compose down -v`: it deletes the volume holding your settings and the
+record of which tickets were already created.
 
-**Stuck creates.** If an SDP create times out, the outcome is unknown. Rather than
-risk a duplicate, the ticket stays in `creating` and a CRITICAL line is logged. Search
-SDP for `[AW-<id>]`: if the request exists, run `resolve-stuck <aw_id> <sdp_id>`;
-if not, run `resolve-stuck <aw_id> none` and it will be created next cycle.
+**Stuck creates.** If an SDP create times out, the outcome is unknown. Rather than risk
+a duplicate, the ticket shows "Check SDP: outcome unknown" on the dashboard. Search SDP
+for `[AW-<id>]`; if the request exists, run `resolve-stuck <aw_id> <sdp_id>`, otherwise
+`resolve-stuck <aw_id> none` and it will be created on the next check.
 
 ## Limits to know about
 
 - **Arctic Wolf's API can't assign, acknowledge or reopen.** Assignment and
   acknowledgement happen in SDP only. Once an AW ticket is closed, reopening the SDP
-  request won't reopen it. If that's a problem, set `SDP_CLOSE_STATUSES=Closed` so
-  only a final close triggers it.
-- **Comments are not synced** between the systems. The closing comment is the only
-  thing sent to Arctic Wolf, and it is visible to them.
-- **Polling cost.** Each cycle makes one SDP read per open mapped ticket. Fine for
-  tens of open tickets; raise `POLL_SECONDS` if you hit SDP API limits.
+  request won't reopen it. If that matters, set "Statuses that close the AW ticket" to
+  `Closed` only.
+- **Comments aren't synced.** The closing comment is the only thing sent to Arctic Wolf.
+- **Polling cost.** Each check reads every open mapped request from SDP once. Fine for
+  tens of open tickets; raise "Check every" if you hit SDP API limits.
+- **It only runs while Docker runs.** On a laptop, checks stop while it sleeps.
 
 ## Development
 

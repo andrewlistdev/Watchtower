@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Set up{% endblock %}
+{% block main_attrs %}class="narrow"{% endblock %}
+{% block content %}
+<h1>Create the admin account</h1>
+<p class="muted">The setup code is in the container log. Run
+  <code>docker compose logs aw-sdp-pd-sync</code> and copy the code shown there.</p>
+<form method="post" class="stack" novalidate>
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div>
+    <label for="code">Setup code</label>
+    <input id="code" name="code" autocomplete="off" value="{{ form.get('code', '') }}" {% if errors.code %}aria-invalid="true" aria-describedby="code-err"{% endif %} required>
+    {% if errors.code %}<p class="field-error" id="code-err">{{ errors.code }}</p>{% endif %}
+  </div>
+  <div>
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" value="{{ form.get('username', '') }}" {% if errors.username %}aria-invalid="true" aria-describedby="username-err"{% endif %} required>
+    {% if errors.username %}<p class="field-error" id="username-err">{{ errors.username }}</p>{% endif %}
+  </div>
+  <div>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" {% if errors.password %}aria-invalid="true" aria-describedby="password-err"{% endif %} required>
+    {% if errors.password %}<p class="field-error" id="password-err">{{ errors.password }}</p>{% else %}<p class="help">At least 12 characters.</p>{% endif %}
+  </div>
+  <div>
+    <label for="confirm">Confirm password</label>
+    <input id="confirm" name="confirm" type="password" autocomplete="new-password" {% if errors.confirm %}aria-invalid="true" aria-describedby="confirm-err"{% endif %} required>
+    {% if errors.confirm %}<p class="field-error" id="confirm-err">{{ errors.confirm }}</p>{% endif %}
+  </div>
+  <button type="submit">Create account</button>
+</form>
+{% endblock %}

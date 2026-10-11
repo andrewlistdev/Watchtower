@@ -1,7 +1,10 @@
 # Flows
 
-Everything runs in one polling loop (default every 60 seconds). Each cycle runs
-flows 1, 2 and 3 in order. State lives in SQLite (`/data/state.db`).
+Everything runs in one polling loop (default every 60 seconds) inside the same container
+as the admin page. Each check re-reads the settings saved on the admin page, then runs
+flows 1, 2 and 3 in order. Until the required credentials are saved, the loop waits.
+Settings, encrypted credentials, the people list and ticket state live in SQLite
+(`/data/state.db`) in the `sync-data` volume.
 
 ## Flow 1: New Arctic Wolf ticket → SDP request, assigned and acknowledged
 

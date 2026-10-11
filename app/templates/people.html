@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}People{% endblock %}
+{% block main_attrs %}class="wide"{% endblock %}
+{% block content %}
+<h1>People</h1>
+<p class="muted">Who can be assigned tickets. When PagerDuty shows someone on shift, their ticket goes to the SDP
+  technician with the email below. Turn off Active to stop assigning to someone without removing them.</p>
+
+{% if errors %}
+  <div class="error-box" role="alert">Nothing was saved. Fix these and save again:
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<form method="post" novalidate autocomplete="off">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="table-wrap">
+    <table class="people">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">PagerDuty ID</th>
+          <th scope="col">Arctic Wolf name</th>
+          <th scope="col">Email</th>
+          <th scope="col">SDP email, if different</th>
+          <th scope="col" class="narrow-col">Active</th>
+          <th scope="col" class="narrow-col">Remove</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows + [{}, {}] %}{% set i = loop.index0 %}
+        <tr>
+          <td><input type="text" name="p-{{ i }}-pagerduty_user" value="{{ r.pagerduty_user or '' }}" aria-label="Name, row {{ i + 1 }}"></td>
+          <td><input type="text" class="id" name="p-{{ i }}-pagerduty_id" value="{{ r.pagerduty_id or '' }}" spellcheck="false" aria-label="PagerDuty ID, row {{ i + 1 }}"></td>
+          <td><input type="text" name="p-{{ i }}-aw_assignee" value="{{ r.aw_assignee or '' }}" aria-label="Arctic Wolf name, row {{ i + 1 }}"></td>
+          <td><input type="text" class="email" name="p-{{ i }}-aw_email" value="{{ r.aw_email or '' }}" spellcheck="false" aria-label="Email, row {{ i + 1 }}"></td>
+          <td><input type="text" class="email" name="p-{{ i }}-sdp_email" value="{{ r.sdp_email or '' }}" spellcheck="false" aria-label="SDP email, row {{ i + 1 }}"></td>
+          <td class="narrow-col"><input type="checkbox" name="p-{{ i }}-active" {% if r.active is not defined or r.active %}checked{% endif %} aria-label="Active, row {{ i + 1 }}"></td>
+          <td class="narrow-col">{% if r %}<input type="checkbox" name="p-{{ i }}-remove" aria-label="Remove row {{ i + 1 }}">{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="help">Fill in a blank row to add someone. Save to get more blank rows.</p>
+  <div class="savebar">
+    <button type="submit">Save people</button>
+  </div>
+</form>
+{% endblock %}

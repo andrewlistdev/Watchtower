@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+{% block content %}
+
+<section class="block">
+  <div class="status-row">
+    <div class="phase-{{ status.phase if status else 'starting' }}">
+      {% if not status or status.phase == 'starting' %}
+        <h1><span class="status-dot" aria-hidden="true"></span>Starting up</h1>
+      {% elif status.phase == 'needs_settings' %}
+        <h1><span class="status-dot" aria-hidden="true"></span>Waiting for settings</h1>
+        <p>Add these in <a href="{{ url_for('settings') }}">Settings</a> to start:
+          {% for f in missing %}{{ f.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+      {% elif status.phase == 'error' %}
+        <h1><span class="status-dot" aria-hidden="true"></span>Last check failed</h1>
+        <p>{{ status.last_error }} Checked {{ ago(status.last_check_at) }}; it retries every {{ cfg.poll_seconds if cfg else 60 }} seconds.</p>
+      {% else %}
+        <h1><span class="status-dot" aria-hidden="true"></span>Running</h1>
+        <p class="muted">Last check {{ ago(status.last_check_at) }}, no problems. Checks every {{ cfg.poll_seconds }} seconds.</p>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('check_now') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button type="submit" class="secondary">Check now</button>
+    </form>
+  </div>
+  {% if cfg and cfg.dry_run %}
+    <p class="notice">Dry run is on, so nothing is created, assigned or closed. When the preview below looks right,
+      turn it off in <a href="{{ url_for('settings') }}#behaviour">Sync behaviour</a>.</p>
+  {% endif %}
+</section>
+
+<section class="block" aria-labelledby="shift-h">
+  <h2 id="shift-h">On shift</h2>
+  {% if not cfg %}
+    <p class="muted">Shows who's on shift once the PagerDuty settings are in.</p>
+  {% elif shift_error %}
+    <p class="bad">Couldn't read the PagerDuty schedule: {{ shift_error }}</p>
+  {% else %}
+    <div class="strip-wrap">
+    <svg class="strip" viewBox="0 -18 1000 136" role="img"
+         aria-label="Shift schedule from {{ shift.window_start | local('%-I:%M %p') }} to {{ shift.window_end | local('%-I:%M %p') }}">
+      <defs>
+        {% for b in strip.blocks %}
+        <clipPath id="clip{{ loop.index }}"><rect x="{{ b.x }}" y="14" width="{{ b.w }}" height="64"/></clipPath>
+        {% endfor %}
+      </defs>
+      {% for t in strip.ticks %}
+        <line class="tick" x1="{{ t.x }}" x2="{{ t.x }}" y1="8" y2="88"/>
+        <text class="tick-label" x="{{ t.x }}" y="108" text-anchor="middle">{{ t.label }}</text>
+      {% endfor %}
+      {% for b in strip.blocks %}
+        <rect class="shift{% if b.current %} current{% endif %}{% if not b.mapped %} unmapped{% endif %}"
+              x="{{ b.x + 1 }}" y="14" width="{{ [b.w - 2, 1] | max }}" height="64" rx="3">
+          <title>{{ b.name }} until {{ b.until }}{% if not b.mapped %} (not in People){% endif %}</title>
+        </rect>
+      {% endfor %}
+      {% if strip.handoff %}
+        <rect class="handoff" x="{{ strip.handoff.x }}" y="14" width="{{ strip.handoff.w }}" height="64">
+          <title>Handoff window: new tickets go to the next person</title>
+        </rect>
+      {% endif %}
+      {% for b in strip.blocks %}{% if b.wide %}
+        <g class="{% if b.current %}current-label{% endif %}" clip-path="url(#clip{{ loop.index }})">
+          <text class="name" x="{{ b.label_x }}" y="42">{{ b.name }}</text>
+          <text class="until" x="{{ b.label_x }}" y="64">until {{ b.until | lower }}</text>
+        </g>
+      {% endif %}{% endfor %}
+      <line class="now" x1="{{ strip.now_x }}" x2="{{ strip.now_x }}" y1="2" y2="90"/>
+      <text class="now-label" x="{{ strip.now_x }}" y="-4" text-anchor="middle">Now</text>
+    </svg>
+    </div>
+    <ul class="legend">
+      <li><i class="k-now"></i>On shift now</li>
+      <li><i class="k-next"></i>Coming up</li>
+      <li><i class="k-handoff"></i>Last {{ cfg.handoff_minutes }} minutes: tickets go to the next person</li>
+      {% if strip.blocks | rejectattr('mapped') | list %}<li><i class="k-unmapped"></i>Not on the People page, so can't be assigned</li>{% endif %}
+    </ul>
+    <p class="assign">
+      {% if shift.assignee_name %}A ticket arriving now goes to <strong>{{ shift.assignee_name }}</strong>.
+      {% elif shift.assignee_email %}A ticket arriving now goes to the fallback technician, {{ shift.assignee_email }}.
+      {% else %}A ticket arriving now would be left unassigned.{% endif %}
+    </p>
+    <p class="muted">{{ shift.reason }}</p>
+  {% endif %}
+</section>
+
+{% if previews %}
+<section class="block" aria-labelledby="preview-h">
+  <h2 id="preview-h">What going live would do now</h2>
+  <p class="muted">These Arctic Wolf tickets are open. A live check would create each one in SDP and assign it as shown.
+    {% if cfg and not cfg.aw_backfill_open %}With "Import tickets already open" off, tickets open before the first live check are skipped; only new ones are created.{% endif %}</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th scope="col">AW ticket</th><th scope="col">Title</th><th scope="col">Would assign to</th><th scope="col">Why</th></tr></thead>
+      <tbody>
+      {% for p in previews %}
+        <tr>
+          <td class="id">{{ p.aw_id }}</td>
+          <td>{{ p.title }}</td>
+          <td>{{ p.name or p.technician or 'Nobody' }}</td>
+          <td class="muted">{{ p.reason }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="block" aria-labelledby="tickets-h">
+  <h2 id="tickets-h">Tickets</h2>
+  {% if not rows %}
+    <p class="muted">No tickets yet. New Arctic Wolf tickets show up here after the first live check.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th scope="col">AW ticket</th><th scope="col">Title</th><th scope="col">SDP request</th>
+        <th scope="col">Assigned to</th><th scope="col">Status</th><th scope="col">Received</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="id">{{ r.aw_id }}</td>
+          <td>{{ r.aw_title }}
+            {% if r.last_error %}<p class="help bad">{{ r.last_error | tidy_error }}</p>{% endif %}</td>
+          <td class="id">{{ r.sdp_id or '' }}</td>
+          <td>{{ by_email.get((r.assigned_email or '').lower(), r.assigned_email or 'Unassigned') }}</td>
+          <td>{{ state_labels.get(r.state, r.state) }}{% if r.state == 'aw_closed' %}<p class="help">{{ 'from SDP' if r.closed_by == 'sdp' else 'by Arctic Wolf' }}</p>{% endif %}</td>
+          <td class="nowrap">{{ r.created_at | local }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

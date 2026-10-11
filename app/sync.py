@@ -72,10 +72,13 @@ class Syncer:
         self._pd_cache: tuple[float, list] | None = None
         self._warned_stuck: set[int] = set()
         self._dry_seen: set[int] = set()
+        # Dry-run previews for the dashboard: AW id -> what would happen.
+        self.previews: dict[int, dict] = {}
 
     # ------------------------------------------------------------------ cycle
 
     def run_cycle(self) -> None:
+        self.previews.clear()  # rebuilt each dry-run check from what is open now
         self._warn_stuck_creates()
         self.ingest_new_tickets()
         self.close_aw_when_sdp_closed()
@@ -95,7 +98,7 @@ class Syncer:
     def choose_assignee(self) -> Assignment:
         reason = ""
         try:
-            selection = pick_on_shift(self._schedule(), self.now(), self.cfg.handoff_minutes)
+            selection = pick_on_shift(self._schedule(), self.now(), self.cfg.handoff_minutes, self.cfg.zone)
         except Exception as exc:  # PagerDuty down shouldn't stop tickets flowing
             selection = None
             reason = f"PagerDuty lookup failed ({exc.__class__.__name__}: {exc})"
@@ -187,6 +190,14 @@ class Syncer:
         request = self._build_request(ticket, who)
 
         if self.cfg.dry_run:
+            self.previews[aw_id] = {
+                "aw_id": aw_id,
+                "title": ticket.get("title") or "",
+                "aw_status": ticket.get("status") or "",
+                "technician": who.email,
+                "name": who.name,
+                "reason": who.reason,
+            }
             if aw_id not in self._dry_seen:
                 self._dry_seen.add(aw_id)
                 log.info(
