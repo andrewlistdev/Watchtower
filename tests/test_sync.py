@@ -115,7 +115,7 @@ def env():
     return _make
 
 
-def test_new_ticket_assigned_to_on_shift_and_acknowledged(env):
+def test_new_ticket_routed_to_on_call_responder(env):
     s, aw, sdp = env()
     aw.add(1)
     s.run_cycle()
@@ -126,7 +126,8 @@ def test_new_ticket_assigned_to_on_shift_and_acknowledged(env):
     assert req["priority"] == {"name": "High"}
     assert req["udf_fields"] == {"udf_sline_301": "1"}
     rid, note, first_response = sdp.notes[0]
-    assert "Watchtower acknowledged" in note and first_response is True
+    assert "Watchtower routed this ticket to Amanda Tillman" in note and first_response is True
+    assert "hasn't acknowledged" in note  # routing is never presented as the responder's acknowledgment
     assert s.state.get(1)["state"] == "open"
 
 
@@ -153,7 +154,7 @@ def test_unmapped_pagerduty_user_creates_unassigned(env):
     s.run_cycle()
     (req,) = sdp.requests.values()
     assert "technician" not in req
-    assert "couldn't assign" in sdp.notes[0][1]
+    assert "couldn't route" in sdp.notes[0][1]
 
 
 def test_fallback_technician_used_when_unmapped(env):
@@ -171,7 +172,7 @@ def test_sdp_rejects_technician_creates_unassigned(env):
     s.run_cycle()
     (req,) = sdp.requests.values()
     assert "technician" not in req
-    assert "rejected by SDP" in sdp.notes[0][1]
+    assert "rejected the assignment" in sdp.notes[0][1]
 
 
 def test_resolved_in_sdp_closes_aw_with_resolution(env):
@@ -217,7 +218,7 @@ def test_aw_closed_first_adds_sdp_note(env):
     s.run_cycle()
     aw.tickets[9]["status"] = "CLOSED"
     s.run_cycle()
-    assert any("Arctic Wolf closed AW ticket 9" in n[1] for n in sdp.notes)
+    assert any("Arctic Wolf closed ticket 9" in n[1] for n in sdp.notes)
     assert s.state.get(9)["closed_by"] == "arcticwolf"
 
 

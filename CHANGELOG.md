@@ -5,6 +5,33 @@ number, new features the middle one, and changes that need you to do something w
 upgrading the first. The version lives in `watchtower/__init__.py`; the image tag in
 `docker-compose.yml` must match it.
 
+## 1.1.0 (2026-10-11)
+
+Applies the Watchtower brand guide (`docs/BRAND_GUIDE.md`).
+
+- **Look:** dark-first theme with the guide's navy and teal palette, Space Grotesk,
+  Inter and IBM Plex Mono (bundled, no external requests), all from central tokens in
+  `static/tokens.css`. Light and "match my system" themes are on the Account page.
+- **Logo:** new fire-watch tower mark and WATCHTOWER wordmark, with a reusable
+  `WatchtowerLogo` component and SVG files for dark, light, monochrome, mark-only,
+  small-icon and favicon use.
+- **Honest ticket states:** Routed, Unassigned, Needs check, Routing failed, Resolving,
+  Close failed, Resolved and Closed in Arctic Wolf, each with a text label. Nothing is
+  shown as "Acknowledged", because Watchtower can't see a responder accept a ticket.
+  Tickets whose state couldn't be refreshed are marked "Out of date".
+- **Current owner:** read back from ServiceDesk Plus on every check, so reassignments
+  made in SDP show up.
+- **Routing history:** every routing decision, ownership and status change, resolution
+  and failure is recorded. New ticket page shows it with the reason the owner was chosen;
+  new Activity page lists it alongside settings changes.
+- **Copy:** pages, routing reasons and SDP notes use the guide's terminology (routed,
+  responder, on call, current owner). The SDP note now says Watchtower routed the ticket
+  and that the responder hasn't acknowledged it yet. Behaviour is unchanged: the routed
+  status is still set and first response is still marked.
+- People page is now **Responders** (`/people` redirects). The setting "Status when
+  acknowledged" is now "Status after routing"; your saved value carries over.
+- Existing databases are upgraded automatically on start.
+
 ## 1.0.0 (2026-10-11)
 
 The project is now **Watchtower**.

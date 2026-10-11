@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Responders{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Responders</h1>
+    <p class="muted">Who Watchtower can route tickets to. When PagerDuty shows someone on call, Watchtower assigns the
+      ticket to the ServiceDesk Plus technician with their email. Turn off Active to stop routing to someone without
+      removing them.</p>
+  </div>
+</div>
+
+{% if errors %}
+  <div class="notice tone-error" role="alert">Nothing was saved. Fix these and save again:
+    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<form method="post" novalidate autocomplete="off" class="card">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="table-wrap">
+    <table class="table table--form">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">PagerDuty ID</th>
+          <th scope="col">Arctic Wolf name</th>
+          <th scope="col">Email</th>
+          <th scope="col">ServiceDesk Plus email, if different</th>
+          <th scope="col" class="center">Active</th>
+          <th scope="col" class="center">Remove</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows + [{}, {}] %}{% set i = loop.index0 %}
+        <tr>
+          <td><input type="text" name="p-{{ i }}-pagerduty_user" value="{{ r.pagerduty_user or '' }}" aria-label="Name, row {{ i + 1 }}"></td>
+          <td><input type="text" class="id" name="p-{{ i }}-pagerduty_id" value="{{ r.pagerduty_id or '' }}" spellcheck="false" aria-label="PagerDuty ID, row {{ i + 1 }}"></td>
+          <td><input type="text" name="p-{{ i }}-aw_assignee" value="{{ r.aw_assignee or '' }}" aria-label="Arctic Wolf name, row {{ i + 1 }}"></td>
+          <td><input type="text" class="email" name="p-{{ i }}-aw_email" value="{{ r.aw_email or '' }}" spellcheck="false" aria-label="Email, row {{ i + 1 }}"></td>
+          <td><input type="text" class="email" name="p-{{ i }}-sdp_email" value="{{ r.sdp_email or '' }}" spellcheck="false" aria-label="ServiceDesk Plus email, row {{ i + 1 }}"></td>
+          <td class="center"><input type="checkbox" name="p-{{ i }}-active" {% if r.active is not defined or r.active %}checked{% endif %} aria-label="Active, row {{ i + 1 }}"></td>
+          <td class="center">{% if r %}<input type="checkbox" name="p-{{ i }}-remove" aria-label="Remove row {{ i + 1 }}">{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="form-foot">
+    <button type="submit" class="btn btn-primary">Save responders</button>
+    <span class="muted">Fill in a blank row to add someone. Save to get more blank rows.</span>
+  </div>
+</form>
+{% endblock %}

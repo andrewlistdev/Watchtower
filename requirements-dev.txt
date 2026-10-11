@@ -1,2 +1,6 @@
 -r requirements.txt
 pytest==8.3.3
+# Only for scripts/build_brand_assets.py
+fonttools==4.65.0
+brotli==1.2.0
+uharfbuzz==0.56.3

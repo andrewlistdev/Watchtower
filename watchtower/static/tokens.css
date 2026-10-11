@@ -1,0 +1,168 @@
+/*
+ * Watchtower design tokens. Source of truth: docs/BRAND_GUIDE.md §5–7.
+ *
+ * Layer 1, --wt-*: the brand palette and type, exactly as in the guide.
+ * Layer 2, semantic aliases (--bg, --surface, --text, …): what components use.
+ *   Components never reference raw hex values or --wt-* palette tokens directly,
+ *   so a theme only has to remap layer 2.
+ *
+ * Dark is the default theme. The light theme is derived (the guide asks for light
+ * equivalents but doesn't specify them); its values were picked to meet WCAG 2.2 AA
+ * and are checked by tests/test_tokens.py.
+ */
+
+:root {
+  /* Core palette */
+  --wt-midnight: #0B1220;
+  --wt-navy: #111C2E;
+  --wt-elevated: #19283D;
+  --wt-blue: #1E4770;
+  --wt-teal: #35D0BA;
+  --wt-cloud: #F1F5F9;
+  --wt-slate: #9AAABD;
+  --wt-border: #2A3A50;
+
+  /* Semantic status colours (dark theme values from the guide) */
+  --wt-status-unassigned: #64748B;
+  --wt-status-routed: #60A5FA;
+  --wt-status-acknowledged: #35D0BA;
+  --wt-status-escalated: #FBBF24;
+  --wt-status-resolved: #4ADE80;
+  --wt-status-error: #FB7185;
+  --wt-status-info: #60A5FA;
+
+  /* Derived: not in the guide, added for contrast */
+  --wt-control-border-dark: #5A6B82;   /* 3.1:1 on navy, for input outlines */
+  --wt-light-surface: #FFFFFF;
+  --wt-light-raised: #F8FAFC;
+  --wt-light-border: #D5DEE8;
+  --wt-light-control-border: #7B8BA1;  /* 3.5:1 on white */
+  --wt-light-muted: #475569;
+  --wt-teal-deep: #0F766E;             /* teal for text and focus on light surfaces */
+  --wt-light-status-unassigned: #64748B;
+  --wt-light-status-routed: #2563EB;
+  --wt-light-status-escalated: #B45309;
+  --wt-light-status-resolved: #15803D;
+  --wt-light-status-error: #BE123C;
+
+  /* Type (§6) */
+  --wt-font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --wt-font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wt-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --wt-type-page: 600 2rem/2.5rem var(--wt-font-display);         /* 32 / 40 */
+  --wt-type-section: 600 1.5rem/2rem var(--wt-font-display);      /* 24 / 32 */
+  --wt-type-card: 600 1.125rem/1.625rem var(--wt-font-display);   /* 18 / 26 */
+  --wt-type-body: 400 0.9375rem/1.5rem var(--wt-font-ui);         /* 15 / 24 */
+  --wt-type-table: 400 0.875rem/1.375rem var(--wt-font-ui);       /* 14 / 22 */
+  --wt-type-secondary: 400 0.8125rem/1.25rem var(--wt-font-ui);   /* 13 / 20 */
+  --wt-type-label: 500 0.75rem/1rem var(--wt-font-ui);            /* 12 / 16 */
+  --wt-type-mono: 400 0.8125rem/1.25rem var(--wt-font-mono);      /* 13 / 20 */
+
+  /* Space (4 px base) and shape (§7) */
+  --wt-space-1: 4px;
+  --wt-space-2: 8px;
+  --wt-space-3: 12px;
+  --wt-space-4: 16px;
+  --wt-space-6: 24px;
+  --wt-space-8: 32px;
+  --wt-space-10: 40px;
+  --wt-radius-control: 6px;
+  --wt-radius-card: 8px;
+  --wt-control-height: 40px;
+}
+
+/* ---- Dark theme (default) ------------------------------------------------ */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--wt-midnight);
+  --surface: var(--wt-navy);
+  --raised: var(--wt-elevated);
+  --border: var(--wt-border);
+  --control-bg: var(--wt-midnight);
+  --control-border: var(--wt-control-border-dark);
+  --text: var(--wt-cloud);
+  --text-muted: var(--wt-slate);
+  --accent: var(--wt-teal);              /* primary buttons, active nav, focus */
+  --accent-ink: var(--wt-midnight);      /* text on --accent */
+  --accent-border: var(--wt-teal);
+  --link: var(--wt-teal);
+  --focus: var(--wt-teal);
+  --support: var(--wt-blue);             /* secondary accent: current shift */
+  --support-ink: var(--wt-cloud);
+  --logo-mark: var(--wt-teal);
+  --logo-word: var(--wt-cloud);
+
+  --status-unassigned: var(--wt-status-unassigned);
+  --status-routed: var(--wt-status-routed);
+  --status-acknowledged: var(--wt-status-acknowledged);
+  --status-escalated: var(--wt-status-escalated);
+  --status-resolved: var(--wt-status-resolved);
+  --status-error: var(--wt-status-error);
+  --status-info: var(--wt-status-info);
+  --status-ink: var(--wt-midnight);      /* text on a solid status colour */
+}
+
+/* ---- Light theme --------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: var(--wt-cloud);
+  --surface: var(--wt-light-surface);
+  --raised: var(--wt-light-raised);
+  --border: var(--wt-light-border);
+  --control-bg: var(--wt-light-surface);
+  --control-border: var(--wt-light-control-border);
+  --text: var(--wt-midnight);
+  --text-muted: var(--wt-light-muted);
+  --accent: var(--wt-teal);
+  --accent-ink: var(--wt-midnight);
+  --accent-border: var(--wt-teal-deep);
+  --link: var(--wt-teal-deep);
+  --focus: var(--wt-teal-deep);
+  --support: var(--wt-blue);
+  --support-ink: var(--wt-cloud);
+  --logo-mark: var(--wt-blue);
+  --logo-word: var(--wt-midnight);
+
+  --status-unassigned: var(--wt-light-status-unassigned);
+  --status-routed: var(--wt-light-status-routed);
+  --status-acknowledged: var(--wt-teal-deep);
+  --status-escalated: var(--wt-light-status-escalated);
+  --status-resolved: var(--wt-light-status-resolved);
+  --status-error: var(--wt-light-status-error);
+  --status-info: var(--wt-light-status-routed);
+  --status-ink: var(--wt-light-surface);
+}
+
+/* "Match my system": same values as the light theme when the OS asks for light. */
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    color-scheme: light;
+    --bg: var(--wt-cloud);
+    --surface: var(--wt-light-surface);
+    --raised: var(--wt-light-raised);
+    --border: var(--wt-light-border);
+    --control-bg: var(--wt-light-surface);
+    --control-border: var(--wt-light-control-border);
+    --text: var(--wt-midnight);
+    --text-muted: var(--wt-light-muted);
+    --accent: var(--wt-teal);
+    --accent-ink: var(--wt-midnight);
+    --accent-border: var(--wt-teal-deep);
+    --link: var(--wt-teal-deep);
+    --focus: var(--wt-teal-deep);
+    --support: var(--wt-blue);
+    --support-ink: var(--wt-cloud);
+    --logo-mark: var(--wt-blue);
+    --logo-word: var(--wt-midnight);
+    --status-unassigned: var(--wt-light-status-unassigned);
+    --status-routed: var(--wt-light-status-routed);
+    --status-acknowledged: var(--wt-teal-deep);
+    --status-escalated: var(--wt-light-status-escalated);
+    --status-resolved: var(--wt-light-status-resolved);
+    --status-error: var(--wt-light-status-error);
+    --status-info: var(--wt-light-status-routed);
+    --status-ink: var(--wt-light-surface);
+  }
+}

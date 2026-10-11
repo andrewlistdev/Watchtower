@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Activity</h1>
+    <p class="muted">Routing decisions, ownership and status changes, and settings changes, newest first.</p>
+  </div>
+</div>
+
+<section class="card" aria-label="Activity">
+  <div class="card__head">
+    <nav class="filters" aria-label="Filter activity">
+      <a href="{{ url_for('activity') }}" {% if kind == 'all' %}aria-current="true"{% endif %}>All</a>
+      <a href="{{ url_for('activity', kind='routing') }}" {% if kind == 'routing' %}aria-current="true"{% endif %}>Routing history</a>
+      <a href="{{ url_for('activity', kind='settings') }}" {% if kind == 'settings' %}aria-current="true"{% endif %}>Settings changes</a>
+    </nav>
+  </div>
+  {% if items %}
+    {{ ui.Timeline(items, show_ticket=true) }}
+  {% else %}
+    <p class="empty">{% if kind == 'settings' %}No settings have changed yet.{% else %}No routing activity yet. It appears here once Watchtower routes its first ticket.{% endif %}</p>
+  {% endif %}
+</section>
+{% endblock %}

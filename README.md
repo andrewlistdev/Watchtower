@@ -1,22 +1,31 @@
 # Watchtower
 
-Watchtower watches Arctic Wolf for new tickets, opens each one in ServiceDesk Plus Cloud,
-and hands it to whoever is on shift in PagerDuty. When the request is resolved in SDP,
-Watchtower closes the Arctic Wolf ticket.
+**The right person. Right on time.**
 
-Current version: **1.0.0** ([changelog](CHANGELOG.md))
+Watchtower routes tickets to the right on-call responder, makes ownership clear, and keeps
+each handoff accountable. It picks up new Arctic Wolf tickets, opens each one in
+ServiceDesk Plus Cloud for whoever is on call in PagerDuty, and closes the Arctic Wolf
+ticket once the request is resolved.
 
-1. **New Arctic Wolf ticket → SDP request.** Each new AW ticket becomes an SDP request
-   (`[AW-12345] <title>`), assigned to the person on shift and acknowledged: status set
-   to "In Progress" plus a note that marks first response.
-2. **Shift handoff.** Whoever is on the PagerDuty schedule gets the ticket, unless their
-   shift ends within 30 minutes; then it goes to the person coming on next.
-3. **SDP Resolved/Closed → AW closed.** The AW ticket is closed with the SDP resolution as
-   the closing comment.
-4. **AW closed first → SDP note.** If Arctic Wolf closes a ticket on their side, the SDP
-   request gets a note.
+Watchtower is a coordination layer. It doesn't detect or monitor anything itself;
+Arctic Wolf creates the tickets.
 
-Diagrams of each flow are in [docs/flows.md](docs/flows.md).
+Current version: **1.1.0** ([changelog](CHANGELOG.md)). Brand and UI rules:
+[docs/BRAND_GUIDE.md](docs/BRAND_GUIDE.md).
+
+1. **Routing.** Each new Arctic Wolf ticket becomes an SDP request (`[AW-12345] <title>`)
+   assigned to the on-call responder, with the status set to "Status after routing" (In
+   Progress by default) and a note that marks first response.
+2. **Shift handoff.** Within 30 minutes of a shift's end, tickets route to the person on
+   call next.
+3. **Ownership.** The overview shows each ticket's current owner, read back from SDP every
+   check, and why Watchtower picked them. Reassignments in SDP show up in the routing
+   history.
+4. **Resolution.** When the SDP request reaches a close status, the Arctic Wolf ticket is
+   closed with the SDP resolution as the closing comment. If Arctic Wolf closes first, the
+   SDP request gets a note.
+
+Diagrams of each flow and the ticket states are in [docs/flows.md](docs/flows.md).
 
 ## Run it
 
@@ -30,10 +39,10 @@ your admin account. Then:
 
 1. **Settings:** enter the Arctic Wolf, ServiceDesk Plus and PagerDuty credentials. Use
    **Save and test connection** in each section.
-2. **People:** check the list of who can be assigned (pre-filled from
+2. **Responders:** check who can be routed to (pre-filled from
    `config/identity_map.csv` on first start).
-3. **Dashboard:** confirm the shift strip and the "What going live would do now" preview.
-4. **Settings → Sync behaviour:** turn off **Dry run** to go live.
+3. **Overview:** confirm the on-call strip and the routing preview.
+4. **Settings → Routing behaviour:** turn off **Dry run** to go live.
 
 Watchtower starts in dry run and waits quietly until the required settings are saved, so
 there's no restart loop. Changes saved in the admin page apply on the next check; no
@@ -49,7 +58,7 @@ docker compose -f ../aw-sdp-pd-sync/docker-compose.yml down
 docker compose up --no-start --build
 docker run --rm --user 0 --entrypoint sh \
   -v aw-sdp-pd-sync_sync-data:/from:ro -v watchtower_watchtower-data:/to \
-  watchtower:1.0.0 -c 'test -f /from/state.db || { echo "Old volume not found. Check its name with: docker volume ls"; exit 1; }; cp -a /from/. /to/ && chown -R 10001 /to && echo Copied.'
+  watchtower:1.1.0 -c 'test -f /from/state.db || { echo "Old volume not found. Check its name with: docker volume ls"; exit 1; }; cp -a /from/. /to/ && chown -R 10001 /to && echo Copied.'
 docker compose up -d
 ```
 
@@ -136,8 +145,10 @@ Older images stay on the machine, so rolling back is: check out the previous tag
 
 ## Limits to know about
 
-- **Arctic Wolf's API can't assign, acknowledge or reopen.** Assignment and
-  acknowledgement happen in SDP only. Once an AW ticket is closed, reopening the SDP
+- **Arctic Wolf's API can't assign, acknowledge or reopen.** Routing happens in SDP only.
+- **Routed isn't acknowledged.** Watchtower sets the routed status and marks first
+  response in SDP, but it can't tell when the responder actually takes responsibility,
+  so it never shows a ticket as "Acknowledged". Once an AW ticket is closed, reopening the SDP
   request won't reopen it. If that matters, set "Statuses that close the AW ticket" to
   `Closed` only.
 - **Comments aren't synced.** The closing comment is the only thing sent to Arctic Wolf.
@@ -148,9 +159,22 @@ Older images stay on the machine, so rolling back is: check out the previous tag
   can run side by side: this one uses the container name `watchtower-app` and is labeled
   so the updater leaves it alone.
 
+## Brand assets
+
+Logo files for docs and slides are in `watchtower/static/brand/`: horizontal logo for
+dark and light backgrounds, monochrome, standalone mark, small-size icon and favicon.
+They're generated, wordmark included, by `scripts/build_brand_assets.py`, which also
+writes the path data the in-app `WatchtowerLogo` component uses. To swap in approved
+designer artwork, replace those files and the constants in `watchtower/brand_assets.py`.
+
+Colours, type and spacing are tokens in `watchtower/static/tokens.css`; components use
+only the semantic aliases there. `tests/test_tokens.py` checks every text, control and
+status colour pair against WCAG 2.2 AA in both themes.
+
 ## Development
 
 ```bash
 pip install -r requirements-dev.txt
 python -m pytest
+python scripts/build_brand_assets.py   # only after changing the logo
 ```

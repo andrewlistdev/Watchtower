@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set r = t.row %}
+{% block title %}Ticket {{ r.aw_id }}{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{{ url_for('overview') }}">Overview</a> <span aria-hidden="true">/</span> Ticket <span class="id">{{ r.aw_id }}</span></p>
+
+<div class="page-head">
+  <div>
+    <h1>{{ r.aw_title or 'Arctic Wolf ticket' }}</h1>
+    <div class="service-status">{{ ui.StatusBadge(t.status) }}{% if t.status.detail %} <span class="muted">{{ t.status.detail }}</span>{% endif %}</div>
+  </div>
+</div>
+
+<div class="ticket-grid">
+  <section class="card" aria-labelledby="owner-h">
+    <div class="card__head"><h2 id="owner-h">Ownership</h2></div>
+    <dl class="facts">
+      <div><dt>Current owner</dt><dd>{% if t.owner %}{{ t.owner }}{% else %}<span class="muted">Unassigned</span>{% endif %}</dd></div>
+      <div><dt>Why Watchtower routed it here</dt><dd>{{ r.assign_reason or 'Not recorded.' }}</dd></div>
+      <div><dt>ServiceDesk Plus status</dt><dd>{{ r.sdp_status or 'Not read yet.' }}
+        {% if r.refreshed_at %}<span class="cell-sub">Read {{ r.refreshed_at | local }}</span>{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="refs-h">
+    <div class="card__head"><h2 id="refs-h">References</h2></div>
+    <dl class="facts">
+      <div><dt>Arctic Wolf ticket</dt><dd><span class="id">{{ r.aw_id }}</span></dd></div>
+      <div><dt>ServiceDesk Plus request</dt><dd>{% if r.sdp_id %}<span class="id">#{{ r.sdp_id }}</span>{% else %}<span class="muted">None yet</span>{% endif %}</dd></div>
+      <div><dt>Received</dt><dd>{{ r.created_at | local }}</dd></div>
+      {% if r.aw_closed_at %}<div><dt>Arctic Wolf ticket closed</dt><dd>{{ r.aw_closed_at | local }}</dd></div>{% endif %}
+    </dl>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="history-h">
+  <div class="card__head"><h2 id="history-h">Routing history</h2></div>
+  {% if events %}
+    {{ ui.Timeline(events) }}
+  {% else %}
+    <p class="empty">No routing history for this ticket yet. Tickets routed before Watchtower 1.1.0 start their
+      history at their next change.</p>
+  {% endif %}
+</section>
+{% endblock %}

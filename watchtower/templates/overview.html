@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <div class="service-status">
+      {% if not status or status.phase == 'starting' %}
+        {{ ui.Badge("unassigned", "Starting") }}
+        <span class="muted">Watchtower is starting up.</span>
+      {% elif status.phase == 'needs_settings' %}
+        {{ ui.Badge("escalated", "Waiting for settings") }}
+        <span>Add these in <a href="{{ url_for('settings') }}">Settings</a> to start routing:
+          {% for f in missing %}{{ f.label }}{% if not loop.last %}, {% endif %}{% endfor %}.</span>
+      {% elif status.phase == 'error' %}
+        {{ ui.Badge("error", "Last check failed") }}
+        <span>{{ status.last_error }} Checked {{ ago(status.last_check_at) }}. Retrying every {{ cfg.poll_seconds if cfg else 60 }} seconds.</span>
+      {% else %}
+        {{ ui.Badge("resolved", "Running") }}
+        <span class="muted">Checks Arctic Wolf for new tickets every {{ cfg.poll_seconds }} seconds. Last check {{ ago(status.last_check_at) }}.</span>
+      {% endif %}
+    </div>
+  </div>
+  <form method="post" action="{{ url_for('check_now') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-secondary">Check now</button>
+  </form>
+</div>
+
+{% if cfg and cfg.dry_run %}
+  <p class="notice tone-info">Dry run is on. Watchtower shows what it would do but doesn't create, route or close
+    tickets. When the routing preview looks right, turn it off in <a href="{{ url_for('settings') }}#behaviour">Routing behaviour</a>.</p>
+{% endif %}
+
+<section class="card" aria-labelledby="oncall-h">
+  <div class="card__head"><h2 id="oncall-h">On call</h2></div>
+  {% if not cfg %}
+    <p class="muted">Shows who is on call once the PagerDuty settings are saved.</p>
+  {% elif shift_error %}
+    <p class="notice tone-error">Couldn't read the PagerDuty schedule: {{ shift_error }} Check the schedule ID and API key in <a href="{{ url_for('settings') }}#pd">Settings</a>.</p>
+  {% else %}
+    <div class="strip-wrap">
+    <svg class="strip" viewBox="0 -20 1000 132" role="img"
+         aria-label="On-call schedule from {{ shift.window_start | local('%-I:%M %p') }} to {{ shift.window_end | local('%-I:%M %p %Z') }}">
+      <defs>
+        {% for b in strip.blocks %}<clipPath id="clip{{ loop.index }}"><rect x="{{ b.x }}" y="10" width="{{ b.w }}" height="60"/></clipPath>{% endfor %}
+      </defs>
+      {% for t in strip.ticks %}
+        <line class="strip__tick" x1="{{ t.x }}" x2="{{ t.x }}" y1="4" y2="80"/>
+        <text class="strip__tick-label" x="{{ t.x }}" y="104" text-anchor="middle">{{ t.label }}</text>
+      {% endfor %}
+      {% for b in strip.blocks %}
+        <rect class="strip__shift{% if b.current %} is-current{% endif %}{% if not b.mapped %} is-unmapped{% endif %}"
+              x="{{ b.x + 1 }}" y="10" width="{{ [b.w - 2, 1] | max }}" height="60" rx="6">
+          <title>{{ b.name }} until {{ b.until }}{% if not b.mapped %} (not an active responder in Watchtower){% endif %}</title>
+        </rect>
+      {% endfor %}
+      {% if strip.handoff %}
+        <rect class="strip__handoff" x="{{ strip.handoff.x }}" y="10" width="{{ strip.handoff.w }}" height="60">
+          <title>Handoff window: new tickets route to the next person on call</title>
+        </rect>
+      {% endif %}
+      {% for b in strip.blocks %}{% if b.wide %}
+        <g class="strip__label{% if b.current %} is-current{% endif %}" clip-path="url(#clip{{ loop.index }})">
+          <text class="strip__name" x="{{ b.label_x }}" y="36">{{ b.name }}</text>
+          <text class="strip__until" x="{{ b.label_x }}" y="57">until {{ b.until | lower }}</text>
+        </g>
+      {% endif %}{% endfor %}
+      <line class="strip__now" x1="{{ strip.now_x }}" x2="{{ strip.now_x }}" y1="0" y2="84"/>
+      <text class="strip__now-label" x="{{ strip.now_x }}" y="-6" text-anchor="middle">Now</text>
+    </svg>
+    </div>
+    <ul class="legend">
+      <li><i class="legend__key is-current"></i>On call now</li>
+      <li><i class="legend__key"></i>Up next</li>
+      <li><i class="legend__key is-handoff"></i>Last {{ cfg.handoff_minutes }} minutes of a shift: tickets route to the next person</li>
+      {% if strip.blocks | rejectattr('mapped') | list %}<li><i class="legend__key is-unmapped"></i>Not an active responder in Watchtower</li>{% endif %}
+    </ul>
+    <p class="next-route">
+      {% if shift.assignee_name %}The next ticket routes to <strong>{{ shift.assignee_name }}</strong>.
+      {% elif shift.assignee_email %}The next ticket routes to the fallback technician, <strong>{{ shift.assignee_email }}</strong>.
+      {% else %}The next ticket will be created <strong>unassigned</strong>.{% endif %}
+    </p>
+    <p class="muted">{{ shift.reason }}</p>
+  {% endif %}
+</section>
+
+{% if previews %}
+<section class="card" aria-labelledby="preview-h">
+  <div class="card__head">
+    <h2 id="preview-h">Routing preview</h2>
+    {{ ui.Badge("info", "Dry run") }}
+  </div>
+  <p class="muted">These Arctic Wolf tickets are open now. With dry run off, each would get a ServiceDesk Plus request
+    routed as shown.{% if cfg and not cfg.aw_backfill_open %} Tickets already open at the first live check are skipped
+    unless "Import tickets already open" is on.{% endif %}</p>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th scope="col">Ticket</th><th scope="col">Would route to</th><th scope="col">Why</th></tr></thead>
+      <tbody>
+      {% for p in previews %}
+        <tr>
+          <td><span class="cell-title">{{ p.title }}</span><span class="cell-sub">Arctic Wolf <span class="id">{{ p.aw_id }}</span></span></td>
+          <td>{% if p.name or p.technician %}{{ p.name or p.technician }}{% else %}<span class="muted">Unassigned</span>{% endif %}</td>
+          <td class="muted">{{ p.reason }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card" aria-labelledby="tickets-h">
+  <div class="card__head">
+    <h2 id="tickets-h">Tickets</h2>
+    <nav class="filters" aria-label="Filter tickets">
+      {% for key, label in filters.items() %}
+        <a href="{{ url_for('overview', show=key) if key != 'all' else url_for('overview') }}"
+           {% if key == show %}aria-current="true"{% endif %}>{{ label }} <span class="count">{{ counts[key] }}</span></a>
+      {% endfor %}
+    </nav>
+  </div>
+  {% if not tickets %}
+    <p class="empty">
+      {% if show == 'all' %}No tickets yet. New Arctic Wolf tickets appear here after the first live check.
+      {% else %}No tickets match this filter.{% endif %}
+    </p>
+  {% else %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr>
+        <th scope="col">Ticket</th>
+        <th scope="col">Current owner</th>
+        <th scope="col">Status</th>
+        <th scope="col" class="hide-narrow">ServiceDesk Plus</th>
+        <th scope="col" class="hide-narrow">Received</th>
+      </tr></thead>
+      <tbody>
+      {% for t in tickets %}{% set r = t.row %}
+        <tr>
+          <td>
+            <a class="cell-title" href="{{ url_for('ticket', aw_id=r.aw_id) }}">{{ r.aw_title or 'Arctic Wolf ticket' }}</a>
+            <span class="cell-sub">Arctic Wolf <span class="id">{{ r.aw_id }}</span></span>
+          </td>
+          <td>{% if t.owner %}{{ t.owner }}{% else %}<span class="muted">Unassigned</span>{% endif %}</td>
+          <td>
+            {{ ui.StatusBadge(t.status) }}
+            {% if t.status.detail %}<span class="cell-sub">{{ t.status.detail }}</span>{% endif %}
+          </td>
+          <td class="hide-narrow">{% if r.sdp_id %}<span class="id">#{{ r.sdp_id }}</span>{% else %}<span class="muted">None yet</span>{% endif %}</td>
+          <td class="nowrap hide-narrow"><time datetime="{{ r.created_at }}">{{ r.created_at | local }}</time></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -3,7 +3,7 @@ name: watchtower
 services:
   watchtower:
     build: .
-    image: watchtower:1.0.0
+    image: watchtower:1.1.0
     # Not plain "watchtower": that container name is often already taken by the
     # containrrr Watchtower image updater on self-hosted Docker hosts.
     container_name: watchtower-app

@@ -1,44 +1,45 @@
-<!doctype html>
-<html lang="en">
+{% import "components.html" as ui %}<!doctype html>
+<html lang="en" data-theme="{{ g.get('theme', 'dark') }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %} | {{ app_name }}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='watchtower.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='brand/favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  {% if g.user %}
   <header class="masthead">
-    <a class="brand" href="{{ url_for('dashboard') }}">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-        <path d="M16 4.5 L24.5 10.5 H7.5 Z"/>
-        <path fill-rule="evenodd" d="M9 11.5 H23 V17.5 H9 Z M11.2 13.6 V15.4 H20.8 V13.6 Z"/>
-        <path fill-rule="evenodd" d="M11 18.5 H21 L23.5 28 H8.5 Z M16 20.6 L20.3 28 H11.7 Z"/>
-      </svg>
-      <span class="brand-name">{{ app_name }}</span>
-      <span class="brand-sub">Arctic Wolf to ServiceDesk Plus</span>
-    </a>
-    {% if g.user %}
-    <nav aria-label="Main">
-      {% set ep = request.endpoint %}
-      <a href="{{ url_for('dashboard') }}" {% if ep == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
-      <a href="{{ url_for('people') }}" {% if ep == 'people' %}aria-current="page"{% endif %}>People</a>
-      <a href="{{ url_for('settings') }}" {% if ep == 'settings' %}aria-current="page"{% endif %}>Settings</a>
-      <a href="{{ url_for('account') }}" {% if ep == 'account' %}aria-current="page"{% endif %}>{{ g.user }}</a>
-      <form method="post" action="{{ url_for('logout') }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="linklike" type="submit">Sign out</button>
-      </form>
-    </nav>
-    {% endif %}
+    <div class="masthead__inner">
+      <a class="masthead__brand" href="{{ url_for('overview') }}" aria-label="Watchtower overview">
+        {{ ui.WatchtowerLogo(size=28) }}
+      </a>
+      <nav class="masthead__nav" aria-label="Main">
+        {% set ep = request.endpoint %}
+        <a href="{{ url_for('overview') }}" {% if ep in ('overview', 'ticket') %}aria-current="page"{% endif %}>Overview</a>
+        <a href="{{ url_for('responders') }}" {% if ep == 'responders' %}aria-current="page"{% endif %}>Responders</a>
+        <a href="{{ url_for('activity') }}" {% if ep == 'activity' %}aria-current="page"{% endif %}>Activity</a>
+        <a href="{{ url_for('settings') }}" {% if ep == 'settings' %}aria-current="page"{% endif %}>Settings</a>
+      </nav>
+      <div class="masthead__account">
+        <a href="{{ url_for('account') }}" {% if request.endpoint == 'account' %}aria-current="page"{% endif %}>{{ g.user }}</a>
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="link-button" type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
   </header>
-  <main {% block main_attrs %}{% endblock %}>
+  {% endif %}
+  <main id="main" class="{% block main_class %}page{% endblock %}">
     {% for message in get_flashed_messages() %}
-      <p class="flash" role="status">{{ message }}</p>
+      <p class="notice tone-resolved" role="status">{{ message }}</p>
     {% endfor %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="footer">{{ app_name }} {{ app_version }}</footer>
+  <footer class="footer {% block footer_class %}{% endblock %}">{{ app_name }} {{ app_version }}</footer>
 </body>
 </html>

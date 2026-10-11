@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="Watchtower" \
-      org.opencontainers.image.description="Arctic Wolf tickets into ServiceDesk Plus Cloud, assigned to whoever is on shift in PagerDuty"
+      org.opencontainers.image.description="Routes tickets to the right on-call responder. The right person. Right on time."
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -101,7 +101,7 @@ class ShiftView:
 
 def shift_view(cfg: Config, people: dict[str, Person], hours: int = 12,
                now: datetime | None = None, entries: list[ScheduleEntry] | None = None) -> ShiftView:
-    """Who is on shift now and next, for the dashboard strip and `whois`.
+    """Who is on call now and next, for the overview strip and `whois`.
 
     The window starts two hours back so the strip shows the shift in progress.
     """
@@ -120,7 +120,7 @@ def shift_view(cfg: Config, people: dict[str, Person], hours: int = 12,
     sel = pick_on_shift(entries, now, cfg.handoff_minutes, cfg.zone)
     name = email = None
     if sel is None:
-        reason = "Nobody is on this schedule in the next few days."
+        reason = "No on-call coverage is configured for this period. Review the PagerDuty schedule."
     else:
         person = people.get(sel.entry.user_id)
         reason = sel.reason
@@ -128,9 +128,11 @@ def shift_view(cfg: Config, people: dict[str, Person], hours: int = 12,
             name, email = person.pagerduty_user, person.sdp_email
         elif cfg.sdp_fallback_technician_email:
             email = cfg.sdp_fallback_technician_email
-            reason += f". {sel.entry.user_name} isn't an active person here, so the fallback technician gets it."
+            reason += (f" {sel.entry.user_name} isn't an active responder in Watchtower, so it routes to "
+                       f"the fallback technician.")
         else:
-            reason += f". {sel.entry.user_name} isn't an active person here, so it would be left unassigned."
+            reason += (f" No eligible on-call responder was found: {sel.entry.user_name} isn't an active "
+                       f"responder in Watchtower. Add them on the Responders page, or the ticket stays unassigned.")
     return ShiftView(
         now=now, window_start=window_start, window_end=window_end,
         shifts=[(s, people.get(s.user_id)) for s in visible],

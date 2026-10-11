@@ -65,11 +65,13 @@ class Field:
 
 
 SECTIONS = [
-    ("aw", "Arctic Wolf", "Where tickets come from. The token is the Bearer token for the Ticket API."),
-    ("sdp", "ServiceDesk Plus Cloud", "Where tickets are worked. Uses a Zoho self-client refresh token "
+    ("aw", "Arctic Wolf", "Ticket source. Watchtower picks up new tickets here and closes them when "
+                          "they're resolved in ServiceDesk Plus. The token is the Bearer token for the Ticket API."),
+    ("sdp", "ServiceDesk Plus Cloud", "Where tickets are worked and owned. Uses a Zoho self-client refresh token "
                                       "with the SDPOnDemand.requests.ALL scope."),
-    ("pd", "PagerDuty", "Decides who is on shift. A read-only API key is enough."),
-    ("behaviour", "Sync behaviour", "How often to check and what to do. Changes apply on the next check."),
+    ("pd", "PagerDuty", "Who is on call. A read-only API key is enough."),
+    ("behaviour", "Routing behaviour", "How often Watchtower checks for tickets and what it does with them. "
+                                       "Changes apply on the next check."),
 ]
 
 FIELDS: list[Field] = [
@@ -91,17 +93,20 @@ FIELDS: list[Field] = [
     Field("zoho_client_id", "Client ID", "sdp", required=True),
     Field("zoho_client_secret", "Client secret", "sdp", kind="secret", required=True),
     Field("zoho_refresh_token", "Refresh token", "sdp", kind="secret", required=True),
-    Field("sdp_ack_status", "Status when acknowledged", "sdp", default="In Progress",
-          help="Set when a ticket is auto-assigned. Must exist in SDP."),
+    Field("sdp_ack_status", "Status after routing", "sdp", default="In Progress",
+          help="Set when Watchtower assigns a ticket. Must exist in SDP. This doesn't mean the "
+               "responder has acknowledged it."),
     Field("sdp_close_statuses", "Statuses that close the AW ticket", "sdp", kind="list",
           default="Resolved,Closed",
-          help="Use only Closed if requests are often reopened after Resolved; AW tickets can't be reopened."),
+          help="Use only Closed if requests are often reopened after Resolved. Arctic Wolf tickets can't be "
+               "reopened."),
     Field("sdp_requester_email", "Requester email", "sdp", help="Optional. Defaults to the API user."),
     Field("sdp_group", "Support group", "sdp", help="Optional."),
     Field("sdp_aw_id_udf", "Field for the AW ticket ID", "sdp", placeholder="udf_sline_301",
           help="Optional. API key of a single-line request field."),
     Field("sdp_fallback_technician_email", "Fallback technician email", "sdp",
-          help="Gets the ticket when nobody mapped is on shift. Blank leaves it unassigned."),
+          help="Gets the ticket when no eligible on-call responder is found. Leave blank to create it "
+               "unassigned."),
     Field("sdp_priority_low", "Priority for AW Low", "sdp", default="Low"),
     Field("sdp_priority_normal", "Priority for AW Normal", "sdp", default="Medium"),
     Field("sdp_priority_high", "Priority for AW High", "sdp", default="High"),
@@ -111,16 +116,16 @@ FIELDS: list[Field] = [
     Field("pd_schedule_id", "Schedule ID", "pd", required=True, placeholder="PXXXXXX",
           help="The ID at the end of the schedule's URL."),
     Field("handoff_minutes", "Handoff window (minutes)", "pd", kind="int", default="30",
-          help="Within this long of a shift's end, tickets go to the next person on shift."),
+          help="Within this many minutes of a shift's end, tickets route to the next person on call."),
     Field("pd_lookahead_hours", "Look ahead (hours)", "pd", kind="int", default="48"),
     # Behaviour
     Field("dry_run", "Dry run", "behaviour", kind="bool", default="true",
-          help="Log what would happen without creating, assigning or closing anything."),
+          help="Show what Watchtower would do without creating, routing or closing anything."),
     Field("poll_seconds", "Check every (seconds)", "behaviour", kind="int", default="60"),
-    Field("aw_closed_note", "Note SDP when Arctic Wolf closes first", "behaviour", kind="bool",
+    Field("aw_closed_note", "Add an SDP note when Arctic Wolf closes a ticket first", "behaviour", kind="bool",
           default="true"),
     Field("display_timezone", "Time zone for this page", "behaviour", default="America/New_York",
-          help="Used only for showing times here. PagerDuty and the APIs use UTC."),
+          help="Times on these pages use this zone. PagerDuty and the APIs use UTC."),
 ]
 
 FIELDS_BY_KEY = {f.key: f for f in FIELDS}
@@ -341,7 +346,7 @@ class SettingsStore:
                 "VALUES(:pagerduty_id, :pagerduty_user, :aw_assignee, :aw_email, :sdp_email, :active)",
                 rows,
             )
-        self.audit(actor, f"saved the people list ({len(rows)} people)")
+        self.audit(actor, f"saved the responder list ({len(rows)} responders)")
 
     def seed_people_from_csv(self, path: str) -> int:
         """First start only: copy config/identity_map.csv into the database."""

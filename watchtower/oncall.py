@@ -64,14 +64,14 @@ def pick_on_shift(
             return None
         return Selection(
             upcoming,
-            f"No one on shift now; {upcoming.user_name} comes on at {_fmt(upcoming.start, zone)}",
+            f"No one is on call right now. {upcoming.user_name} is next, starting {_fmt(upcoming.start, zone)}.",
         )
 
     remaining = current.end - now
     if remaining > handoff:
         return Selection(
             current,
-            f"{current.user_name} is on shift until {_fmt(current.end, zone)}",
+            f"{current.user_name} is on call until {_fmt(current.end, zone)}.",
         )
 
     following = next(
@@ -80,12 +80,12 @@ def pick_on_shift(
     if following is None:
         return Selection(
             current,
-            f"{current.user_name}'s shift ends at {_fmt(current.end, zone)} but no next shift is "
-            f"scheduled in the lookahead window, so it stays with them",
+            f"{current.user_name}'s shift ends at {_fmt(current.end, zone)} and no one is "
+            f"scheduled next, so it stays with {current.user_name}.",
         )
     minutes_left = int(remaining.total_seconds() // 60)
     return Selection(
         following,
-        f"{current.user_name}'s shift ends in {minutes_left} min "
-        f"(at {_fmt(current.end, zone)}), so it goes to {following.user_name}, next on shift",
+        f"{current.user_name}'s shift ends in {minutes_left} minutes ({_fmt(current.end, zone)}), "
+        f"so it routes to {following.user_name}, who is on call next.",
     )

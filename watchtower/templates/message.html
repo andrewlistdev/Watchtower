@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
-{% block main_attrs %}class="narrow"{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block footer_class %}footer--auth{% endblock %}
 {% block content %}
-<h1>{{ title }}</h1>
-<p>{{ message }}</p>
-<p><a href="{{ url_for('dashboard') }}">Back to the dashboard</a></p>
+<div class="auth__card">
+  <h1 class="auth__title">{{ title }}</h1>
+  <p>{{ message }}</p>
+  <p><a href="{{ url_for('overview') }}">Go to the overview</a></p>
+</div>
 {% endblock %}

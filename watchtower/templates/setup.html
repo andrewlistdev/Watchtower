@@ -1,32 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Set up{% endblock %}
-{% block main_attrs %}class="narrow"{% endblock %}
+{% block main_class %}auth{% endblock %}
+{% block footer_class %}footer--auth{% endblock %}
 {% block content %}
-<h1>Set up Watchtower</h1>
-<p class="muted">The setup code is in the container log. Run
-  <code>docker compose logs watchtower</code> and copy the code shown there.</p>
-<form method="post" class="stack" novalidate>
-  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <div>
-    <label for="code">Setup code</label>
-    <input id="code" name="code" autocomplete="off" value="{{ form.get('code', '') }}" {% if errors.code %}aria-invalid="true" aria-describedby="code-err"{% endif %} required>
-    {% if errors.code %}<p class="field-error" id="code-err">{{ errors.code }}</p>{% endif %}
+<div class="auth__card">
+  <div class="auth__brand">
+    {{ ui.WatchtowerLogo(size=36) }}
+    <p class="auth__tagline">The right person. Right on time.</p>
   </div>
-  <div>
-    <label for="username">Username</label>
-    <input id="username" name="username" autocomplete="username" value="{{ form.get('username', '') }}" {% if errors.username %}aria-invalid="true" aria-describedby="username-err"{% endif %} required>
-    {% if errors.username %}<p class="field-error" id="username-err">{{ errors.username }}</p>{% endif %}
-  </div>
-  <div>
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="new-password" {% if errors.password %}aria-invalid="true" aria-describedby="password-err"{% endif %} required>
-    {% if errors.password %}<p class="field-error" id="password-err">{{ errors.password }}</p>{% else %}<p class="help">At least 12 characters.</p>{% endif %}
-  </div>
-  <div>
-    <label for="confirm">Confirm password</label>
-    <input id="confirm" name="confirm" type="password" autocomplete="new-password" {% if errors.confirm %}aria-invalid="true" aria-describedby="confirm-err"{% endif %} required>
-    {% if errors.confirm %}<p class="field-error" id="confirm-err">{{ errors.confirm }}</p>{% endif %}
-  </div>
-  <button type="submit">Create account</button>
-</form>
+  <h1 class="auth__title">Set up Watchtower</h1>
+  <p class="muted">Create the first admin account. The setup code is in the container log:
+    run <code>docker compose logs watchtower</code> and copy the code shown there.</p>
+  <form method="post" class="stack" novalidate>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="code">Setup code</label>
+      <input id="code" name="code" autocomplete="off" spellcheck="false" value="{{ form.get('code', '') }}" {% if errors.code %}aria-invalid="true" aria-describedby="code-err"{% endif %} required>
+      {{ ui.FieldError(errors, "code") }}
+    </div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" value="{{ form.get('username', '') }}" {% if errors.username %}aria-invalid="true" aria-describedby="username-err"{% endif %} required>
+      {{ ui.FieldError(errors, "username") }}
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" {% if errors.password %}aria-invalid="true" aria-describedby="password-err"{% else %}aria-describedby="password-help"{% endif %} required>
+      {% if errors.password %}{{ ui.FieldError(errors, "password") }}{% else %}<p class="help" id="password-help">At least 12 characters.</p>{% endif %}
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" {% if errors.confirm %}aria-invalid="true" aria-describedby="confirm-err"{% endif %} required>
+      {{ ui.FieldError(errors, "confirm") }}
+    </div>
+    <button class="btn btn-primary btn-block" type="submit">Create admin account</button>
+  </form>
+</div>
 {% endblock %}

@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         now = parse_ts(args.at) if args.at else datetime.now(timezone.utc)
         view = shift_view(cfg, store.people_map(), now=now)
         for entry, person in view.shifts:
-            mapped = f"-> {person.sdp_email}" if person and person.active else "-> not in People"
+            mapped = f"-> {person.sdp_email}" if person and person.active else "-> not an active responder"
             print(f"  {entry.start:%a %H:%M} - {entry.end:%a %H:%M} UTC  {entry.user_name} ({entry.user_id}) {mapped}")
         print(f"\nA ticket arriving now goes to: {view.assignee_name or view.assignee_email or 'nobody (unassigned)'}")
         print(f"Why: {view.reason}")

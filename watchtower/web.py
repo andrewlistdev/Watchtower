@@ -1,4 +1,4 @@
-"""Admin GUI: first-run setup, sign-in, settings (secrets), people, dashboard."""
+"""Admin pages: setup, sign-in, overview, tickets, responders, activity, settings, account."""
 
 from __future__ import annotations
 
@@ -14,11 +14,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request,
                    session, url_for)
 
-from . import NAME, __version__
+from . import NAME, __version__, brand_assets
 from .config import Config, ConfigMissing
 from .runtime import check_connections, data_dir, shift_view, short_error
 from .settings_store import FIELDS, FIELDS_BY_KEY, SECTIONS, SettingsStore
 from .state import State
+from .status import FILTERS, api_message, ticket_status
 from .worker import Worker
 
 log = logging.getLogger("web")
@@ -27,12 +28,12 @@ UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{3,64}$")
 MIN_PASSWORD = 12
 PUBLIC_ENDPOINTS = {"static", "healthz", "login", "setup"}
-
-STATE_LABELS = {
-    "creating": "Check SDP: outcome unknown",
-    "failed_create": "Couldn't create in SDP",
-    "open": "Open in SDP",
-    "aw_closed": "Closed",
+THEMES = {"dark": "Dark (default)", "light": "Light", "system": "Match my system"}
+THEME_COOKIE = "wt_theme"
+EVENT_TONES = {
+    "routed": "routed", "unassigned": "unassigned", "reassigned": "routed", "status": "info",
+    "resolved": "resolved", "closed_by_source": "info", "failed": "error", "unknown": "escalated",
+    "admin": "info", "settings": "info",
 }
 
 
@@ -101,7 +102,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         except (ZoneInfoNotFoundError, ValueError):
             return ZoneInfo("UTC")
 
-    def local(dt: datetime | str | None, fmt: str = "%b %-d, %-I:%M %p") -> str:
+    def local(dt: datetime | str | None, fmt: str = "%b %-d, %-I:%M %p %Z") -> str:
         if not dt:
             return ""
         if isinstance(dt, str):
@@ -119,19 +120,11 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
             return f"{mins} minute{'s' if mins != 1 else ''} ago"
         return local(dt)
 
-    def tidy_error(text: str | None) -> str:
-        """Pull the human-readable message out of an API error body when there is one."""
-        if not text:
-            return ""
-        messages = re.findall(r'"message"\s*:\s*"([^"]+)"', text)
-        service = text.split(" ", 1)[0] if text[:1].isalpha() else ""
-        if messages:
-            return f"{service} said: " + "; ".join(dict.fromkeys(messages))
-        return text[:200]
-
     app.jinja_env.filters["local"] = local
-    app.jinja_env.filters["tidy_error"] = tidy_error
+    app.jinja_env.filters["api_message"] = api_message
     app.jinja_env.globals["ago"] = ago
+    app.jinja_env.globals["brand"] = brand_assets
+    app.jinja_env.globals["event_tones"] = EVENT_TONES
 
     def csrf_token() -> str:
         if "csrf" not in session:
@@ -152,6 +145,8 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
 
     @app.before_request
     def gatekeeper():
+        theme = request.cookies.get(THEME_COOKIE, "dark")
+        g.theme = theme if theme in THEMES else "dark"
         if request.method == "POST":
             sent = request.form.get("csrf", "")
             if not sent or not secrets.compare_digest(sent, session.get("csrf", "")):
@@ -190,7 +185,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
     @app.route("/setup", methods=["GET", "POST"])
     def setup():
         if store.has_admin():
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("overview"))
         token = setup_token()
         errors = {}
         form = request.form
@@ -230,7 +225,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                 session.permanent = True
                 session["user"] = request.form["username"]
                 nxt = request.args.get("next", "")
-                return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("dashboard"))
+                return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("overview"))
             else:
                 throttle.fail(ip)
                 log.warning("Failed admin sign-in from %s", ip)
@@ -242,10 +237,26 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         session.clear()
         return redirect(url_for("login"))
 
-    # ---- dashboard --------------------------------------------------------
+    # ---- overview and tickets ---------------------------------------------
+
+    def close_statuses() -> list[str]:
+        cfg = current_config()
+        return cfg.sdp_close_statuses if cfg else ["Resolved", "Closed"]
+
+    def stale_after() -> timedelta:
+        poll = int(store.resolved("poll_seconds") or 60)
+        return timedelta(seconds=max(poll, 15) * 3 + 60)
+
+    def ticket_view(row, people_by_email: dict[str, str]) -> dict:
+        st = ticket_status(row, close_statuses(), stale_after())
+        owner = row["owner_name"] or people_by_email.get((row["owner_email"] or "").lower()) or row["owner_email"]
+        return {"row": row, "status": st, "owner": owner}
+
+    def people_by_email() -> dict[str, str]:
+        return {p.sdp_email.lower(): p.pagerduty_user for p in store.list_people()}
 
     @app.get("/")
-    def dashboard():
+    def overview():
         cfg = current_config()
         status = worker.status if worker else None
         shift, shift_error = None, None
@@ -255,25 +266,63 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                 shift = shift_view(cfg, people)
             except Exception as exc:
                 shift_error = short_error(exc)
-        state = State(db_path)
-        rows = state.all_rows()[:100]
-        by_email = {p.sdp_email.lower(): p.pagerduty_user for p in people.values()}
+        names = {p.sdp_email.lower(): p.pagerduty_user for p in people.values()}
+        tickets = [ticket_view(r, names) for r in State(db_path).all_rows()[:500]]
+        counts = {key: 0 for key in FILTERS}
+        for t in tickets:
+            counts["all"] += 1
+            counts[t["status"].group] += 1
+        show = request.args.get("show", "all")
+        show = show if show in FILTERS else "all"
+        shown = [t for t in tickets if show == "all" or t["status"].group == show][:100]
         previews = []
         if worker and worker._syncer is not None:
             previews = sorted(worker._syncer.previews.values(), key=lambda p: p["aw_id"], reverse=True)
         return render_template(
-            "dashboard.html", cfg=cfg, status=status, shift=shift, shift_error=shift_error,
-            strip=strip_layout(shift, tz()) if shift else None, rows=rows, previews=previews,
-            by_email=by_email, state_labels=STATE_LABELS,
-            missing=store.missing_required(),
+            "overview.html", cfg=cfg, status=status, shift=shift, shift_error=shift_error,
+            strip=strip_layout(shift, tz()) if shift else None, tickets=shown, counts=counts,
+            filters=FILTERS, show=show, previews=previews, missing=store.missing_required(),
         )
+
+    @app.get("/tickets/<int:aw_id>")
+    def ticket(aw_id: int):
+        state = State(db_path)
+        row = state.get(aw_id)
+        if row is None:
+            abort(404)
+        view = ticket_view(row, people_by_email())
+        return render_template("ticket.html", t=view, events=state.events(aw_id))
+
+    @app.errorhandler(404)
+    def not_found(err):
+        return render_template("message.html", title="Not found",
+                               message="There's nothing at this address. It may have been removed."), 404
 
     @app.post("/check-now")
     def check_now():
         if worker:
             worker.wake()
         flash("Checking now. Refresh in a few seconds to see the result.")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("overview"))
+
+    @app.get("/activity")
+    def activity():
+        kind = request.args.get("kind", "all")
+        kind = kind if kind in {"all", "routing", "settings"} else "all"
+        items = []
+        if kind in ("all", "routing"):
+            for e in State(db_path).events(limit=300):
+                items.append({"at": e["at"], "aw_id": e["aw_id"], "kind": e["kind"],
+                              "message": e["message"], "actor": e["actor"]})
+        if kind in ("all", "settings"):
+            actors = {"system": "Watchtower (first start)", "cli": "Admin (command line)"}
+            for a in store.recent_audit(limit=300):
+                text = a["action"][:1].upper() + a["action"][1:]
+                items.append({"at": a["at"], "aw_id": None, "kind": "settings",
+                              "message": text if text.endswith(".") else text + ".",
+                              "actor": actors.get(a["actor"], a["actor"])})
+        items.sort(key=lambda i: i["at"], reverse=True)
+        return render_template("activity.html", items=items[:300], kind=kind)
 
     @app.get("/healthz")
     def healthz():
@@ -376,10 +425,14 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                     form=request.form if errors else {}, audit=store.recent_audit(),
                     missing=store.missing_required())
 
-    # ---- people -----------------------------------------------------------
+    # ---- responders -------------------------------------------------------
 
-    @app.route("/people", methods=["GET", "POST"])
-    def people():
+    @app.get("/people")
+    def people_redirect():
+        return redirect(url_for("responders"), code=301)
+
+    @app.route("/responders", methods=["GET", "POST"])
+    def responders():
         errors: list[str] = []
         if request.method == "POST":
             rows, seen = [], set()
@@ -400,7 +453,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                 seen.add(pd_id)
                 email = v("sdp_email") or v("aw_email")
                 if not email or "@" not in email:
-                    errors.append(f"{name}: add an email so SDP can find the technician.")
+                    errors.append(f"{name}: add an email so ServiceDesk Plus can find the technician.")
                 rows.append({
                     "pagerduty_id": pd_id, "pagerduty_user": name, "aw_assignee": v("aw_assignee"),
                     "aw_email": v("aw_email"), "sdp_email": v("sdp_email"),
@@ -410,11 +463,11 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                 store.replace_people(rows, g.user)
                 if worker:
                     worker.wake()
-                flash(f"Saved {len(rows)} people.")
-                return redirect(url_for("people"))
-            return render_template("people.html", rows=rows, errors=errors)
+                flash(f"Saved {len(rows)} responder{'s' if len(rows) != 1 else ''}.")
+                return redirect(url_for("responders"))
+            return render_template("responders.html", rows=rows, errors=errors)
         rows = [dict(r) for r in store.raw_people()]
-        return render_template("people.html", rows=rows, errors=errors)
+        return render_template("responders.html", rows=rows, errors=errors)
 
     # ---- account ----------------------------------------------------------
 
@@ -423,6 +476,15 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
         errors = {}
         if request.method == "POST":
             action = request.form.get("action")
+            if action == "theme":
+                choice = request.form.get("theme", "dark")
+                if choice not in THEMES:
+                    choice = "dark"
+                resp = redirect(url_for("account") + "#appearance")
+                resp.set_cookie(THEME_COOKIE, choice, max_age=365 * 24 * 3600, samesite="Strict",
+                                secure=app.config["SESSION_COOKIE_SECURE"], httponly=True)
+                flash(f"Appearance set to {THEMES[choice].replace(' (default)', '').lower()}.")
+                return resp
             if action == "password":
                 if not store.verify_admin(g.user, request.form.get("current", "")):
                     errors["current"] = "That isn't your current password."
@@ -448,7 +510,7 @@ def create_app(store: SettingsStore, worker: Worker | None, db_path: str) -> Fla
                     store.audit(g.user, f"added admin {username}")
                     flash(f"Added {username}. Share the password with them securely.")
                     return redirect(url_for("account"))
-        return render_template("account.html", errors=errors, admins=store.list_admins())
+        return render_template("account.html", errors=errors, admins=store.list_admins(), themes=THEMES)
 
     return app
 

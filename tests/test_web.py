@@ -148,12 +148,12 @@ def test_bool_toggle_and_defaults_not_saved(env):
 def test_people_save_and_validation(env):
     app, store, _ = env
     client = sign_up(app)
-    page = client.get("/people").get_data(as_text=True)
-    bad = client.post("/people", data={"csrf": csrf(page), "p-0-pagerduty_user": "Amanda",
+    page = client.get("/responders").get_data(as_text=True)
+    bad = client.post("/responders", data={"csrf": csrf(page), "p-0-pagerduty_user": "Amanda",
                                        "p-0-pagerduty_id": "nope", "p-0-aw_email": "a@x.com"})
     assert "should look like" in bad.get_data(as_text=True)
-    page = client.get("/people").get_data(as_text=True)
-    client.post("/people", data={
+    page = client.get("/responders").get_data(as_text=True)
+    client.post("/responders", data={
         "csrf": csrf(page),
         "p-0-pagerduty_user": "Amanda Tillman", "p-0-pagerduty_id": "ppsnfck",
         "p-0-aw_email": "atillman@arrowheadep.com", "p-0-active": "on",
@@ -202,3 +202,71 @@ def test_strip_layout_marks_handoff(env):
     assert layout["now_x"] == pytest.approx(166.7, abs=0.2)  # 2h into a 12h window
     assert layout["handoff"]["x"] < layout["now_x"] < layout["handoff"]["x"] + layout["handoff"]["w"]
     assert [b["current"] for b in layout["blocks"]] == [True, False]
+
+
+def test_old_people_address_redirects(env):
+    app, _, _ = env
+    client = sign_up(app)
+    resp = client.get("/people")
+    assert resp.status_code == 301 and resp.headers["Location"].endswith("/responders")
+
+
+def test_theme_defaults_to_dark_and_can_be_changed(env):
+    app, _, _ = env
+    client = sign_up(app)
+    assert 'data-theme="dark"' in client.get("/account").get_data(as_text=True)
+    page = client.get("/account").get_data(as_text=True)
+    resp = client.post("/account", data={"csrf": csrf(page), "action": "theme", "theme": "light"})
+    assert "wt_theme=light" in resp.headers["Set-Cookie"]
+    assert 'data-theme="light"' in client.get("/").get_data(as_text=True)
+    page = client.get("/account").get_data(as_text=True)
+    client.post("/account", data={"csrf": csrf(page), "action": "theme", "theme": "<script>"})
+    assert 'data-theme="dark"' in client.get("/").get_data(as_text=True)
+
+
+def _seed_ticket(db):
+    from watchtower.state import State
+    st = State(db)
+    st.begin_create(48211, "Suspicious PowerShell on FIN-LT-042")
+    st.finish_create(48211, "1043", "atillman@arrowheadep.com", "PPSNFCK",
+                     "Amanda Tillman is on call until Mon 7:00 PM EDT.", "Amanda Tillman")
+    st.record_event(48211, "routed", "Routed to Amanda Tillman in ServiceDesk Plus request #1043.")
+    return st
+
+
+def test_overview_lists_tickets_with_owner_and_status(env):
+    app, _, db = env
+    client = sign_up(app)
+    _seed_ticket(db)
+    html = client.get("/").get_data(as_text=True)
+    assert "Suspicious PowerShell" in html and "Amanda Tillman" in html and ">Routed<" in html
+    assert "Acknowledged" not in html
+    assert "No tickets match this filter." in client.get("/?show=closed").get_data(as_text=True)
+
+
+def test_ticket_page_shows_reason_and_history(env):
+    app, _, db = env
+    client = sign_up(app)
+    _seed_ticket(db)
+    html = client.get("/tickets/48211").get_data(as_text=True)
+    assert "Why Watchtower routed it here" in html and "on call until" in html
+    assert "Routed to Amanda Tillman in ServiceDesk Plus request #1043." in html
+    assert client.get("/tickets/99999").status_code == 404
+
+
+def test_activity_merges_routing_and_settings(env):
+    app, _, db = env
+    client = sign_up(app)
+    _seed_ticket(db)
+    html = client.get("/activity").get_data(as_text=True)
+    assert "Routed to Amanda Tillman" in html and "Created the first admin account." in html
+    settings_only = client.get("/activity?kind=settings").get_data(as_text=True)
+    assert "Routed to Amanda Tillman" not in settings_only
+
+
+def test_logo_component_renders_inline_svg(env):
+    app, _, _ = env
+    client = sign_up(app)
+    html = client.get("/").get_data(as_text=True)
+    assert 'class="wt-logo wt-logo--auto"' in html and 'aria-label="Watchtower"' in html
+    assert 'href="/static/brand/favicon.svg"' in html

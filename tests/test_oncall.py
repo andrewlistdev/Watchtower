@@ -25,7 +25,7 @@ def test_31_minutes_left_stays_with_current():
 def test_exactly_30_minutes_left_hands_off():
     sel = pick_on_shift(SCHEDULE, T0 + timedelta(hours=8) - timedelta(minutes=30), 30)
     assert sel.entry.user_id == "doug"
-    assert "next on shift" in sel.reason
+    assert "who is on call next" in sel.reason
 
 
 def test_5_minutes_left_hands_off():
